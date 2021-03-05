@@ -41,39 +41,74 @@ chmod +x /tmp/docker-machine && sudo cp /tmp/docker-machine /usr/bin/docker-mach
 Команды docker:
 
 ```bash
-# Получить сведения о контейнерах и образах
+# Получение информации о контейнерах и образах:
 
-docker images  # Вывести список сохраненных образов
-docker ps      # Вывести список запущенных контейнеров
-docker ps -a   # Вывести список всех контейнеров
-docker inspect <u_image_id>  # получить подробную информацию об образе в JSON-формате
-docker inspect <u_container_id>  # получить подробную информацию о контнйнере в JSON-формате
-docker system df  # вывести информацию, сколько дискового пространства занято образами, контейнерами м томами
+docker images  # посмотреть список сохраненных образов
+docker images -a  # посмотреть список сохраненных образов, включая промежуточныe
+docker images -q   # посмотреть id всех образов
 
-# Запуск контейнеров
+docker ps      # посмотреть список запущенных контейнеров
+docker ps -a   # посмотреть список всех контейнеров (включая остановленные)
+docker ps -q   # посмотреть id всех контейнеров
 
-# docker run = docker create + docker start + docker attach при наличии опции -i  (каждый раз запускается новый контейнер)
-# -i – запускает контейнер в foreground режиме ( docker attach )
-# -d – запускает контейнер в background режиме
-# -t создает TTY
+docker inspect <image>  # получить параметры образа в JSON-формате
+docker inspect <container>  # получить параметры контейнера в JSON-формате
+docker inspect <container> -f '{{.ContainerConfig.Cmd}}' # получить значение конкретного параметра контейнера
 
-docker run -it ubuntu:18.04 /bin/bash # запустить контейнер с TTY в foreground режиме
-root@<u_container_id>:/# echo 'Hello world!' > /tmp/file
-root@<u_container_id>:/# exit  # после выхода контейнер останется на диске
+docker system df  # посмотреть информацию, сколько дискового пространства занято образами, контейнерами, томами и сколько можно удалить
 
-docker run -it -rm ubuntu:18.04 /bin/bash  # чтобы контейнер удалялся после выхода указываем -rm
+docker logs <container> -f  # посмотреть логи контейнера
 
-docker run -dt ubuntu:18.04  # запустить контейнер с TTY в background режиме
+docker diff <container>  # посмотреть изменения в файловой системе docker
+```
 
-docker start <u_container_id>  # запустить остановленный (уже созданный) контейнер
+```bash
+# Запуск контейнеров:
 
-docker attach <u_container_id> # присоеденить терминал к созданному контейнеру
+# docker run = docker create + docker start + docker attach при наличии опции -i  
+# (при вызове каждый раз запускается новый контейнер)
+# Опции:
+# -i, --interractive – запустить контейнер в foreground-режиме
+# -d, --detach – запустить контейнер в background-режиме
+# -t – создать TTY (запустить терминал)
+# --name – присвоить имя контейнеру
+# --rm – удалить контейнер после выхода из него
+
+docker run -it <image> /bin/bash # запустить контейнер с TTY в foreground режиме
+root@<container_id>:/# echo 'Hello world!' > /tmp/file
+root@<container_id>:/# exit
+
+docker run -it -rm <image> /bin/bash 
+docker run --name <container> --rm -it <image> bash
+
+docker run -dt <image>  # запустить контейнер с TTY в background режиме
+
+docker start <container>  # запустить остановленный (уже созданный) контейнер
+
+docker attach <container> # присоеденить терминал к созданному контейнеру
 root@<u_container_id>:/# cat /tmp/file
 Hello world!
 
-docker exec -it <u_container_id> bash # запустить новый процесс bash внутри контейнера
+docker exec -it <container> bash # запустить новый процесс bash внутри контейнера
+root@<u_container_id>
+```
 
-# Остановка и удаление контейнеров
+```bash
+# Остановка и удаление контейнеров:
+
+docker stop <container>  # остановить контейнер
+
+docker kill $(docker ps -q)  # послать SIGKILL запущенным контейнерам
+
+docker rm <container> # удалить контейнер (если указываем имя - удаляются все с данным именем)
+docker rm -f <container>  # удалить работающий контейнер
+docker rm $(docker ps -a -q) # удалить все незапущенные контейнеры
+
+docker rmi <image>  # удалить образ, если нет запущенных контейнеров
+docker rmi -f <image>  # принудительно удалить образ
+docker rmi $(docker images -q) # удалить все сохраненные образы
+
+docker prune  # удалить неиспользуемые данные, см. docker system df
 
 ```
 
@@ -93,5 +128,6 @@ eval $(docker-machine env --unset) # переключимся c удаленно
 docker ps -a  # убедимся, что мы в нужном окружении
 docker run --name reddit -d -p 9292:9292 abichutsky/otus-reddit:1.0 # запускаем контейнер
 ```
-Приложение должно быть доступно по адресу: http://localhost:9292"
+Приложение должно быть доступно по адресу: http://localhost:9292
+
 
