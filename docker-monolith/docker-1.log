@@ -4,6 +4,7 @@ nginx                    latest    35c43ace9216   2 weeks ago     133MB
 ubuntu                   18.04     c090eaba6b94   5 weeks ago     63.3MB
 hello-world              latest    bf756fb1ae65   14 months ago   13.3kB
 
+
 -------------------------------------------------------
 Объяснить, чем отличается контейнер от образа на основе
 сравнения вывода команд:
