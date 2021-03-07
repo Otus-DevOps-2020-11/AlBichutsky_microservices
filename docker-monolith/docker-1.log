@@ -37,4 +37,3 @@ docker inspect <u_image_id>
 "Image": "sha256: ..."
    ...
    Image": "ubuntu:18.04"
-

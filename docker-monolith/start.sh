@@ -5,4 +5,3 @@
 source /reddit/db_config
 
 cd /reddit && puma || exit
-
