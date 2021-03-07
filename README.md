@@ -211,7 +211,7 @@ docker tag reddit:latest abichutsky/otus-reddit:1.0
 docker push abichutsky/otus-reddit:1.0
 ```
 
-- Запустил контейнер из образа в локальном окружении docker:
+- Запустил контейнер из образа в docker-hub в локальном окружении docker:
 
 ```bash
 # В отдельной консоли
