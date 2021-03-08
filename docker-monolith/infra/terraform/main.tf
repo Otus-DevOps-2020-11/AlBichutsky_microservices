@@ -38,7 +38,7 @@ resource "yandex_compute_instance" "vm-app" {
   resource "local_file" "inventory" {
   content = templatefile("${path.module}/templates/inventory.tpl",
     {
-      app_hosts = yandex_compute_instance.vm-app.*.network_interface.0.nat_ip_address
+      docker_hosts = yandex_compute_instance.vm-app.*.network_interface.0.nat_ip_address
     }
   )
   filename = "../ansible/inventory.ini"
