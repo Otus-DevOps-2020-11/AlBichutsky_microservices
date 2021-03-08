@@ -192,7 +192,7 @@ RUN chmod 0777 /start.sh
 CMD ["/start.sh"]
 ```
 
-- Собрал образ и запустил контейнер в окружении Yandex Cloud:
+- Собрал образ и запустил контейнер в Yandex Cloud:
 
 ```bash
 eval $(docker-machine env docker-host)
@@ -211,7 +211,7 @@ docker tag reddit:latest abichutsky/otus-reddit:1.0
 docker push abichutsky/otus-reddit:1.0
 ```
 
-- Запустил контейнер из образа в docker-hub в локальном окружении docker:
+- Запустил контейнер из образа в docker-hub на локальном хосте:
 
 ```bash
 # В отдельной консоли
@@ -221,3 +221,242 @@ docker run --name reddit -d -p 9292:9292 abichutsky/otus-reddit:1.0 # запус
 ```
 
 Проверяем запуск приложения по ссылке: http://localhost:9292
+
+### Задание со *
+
+Автоматизируем установку нескольких инстансов `docker` и запуск в них контейнера с нашим приложением из docker-образа с помощью `Packer`, `Terraform` и `Ansible`.   
+
+Требования:  
+- Нужно реализовать в виде прототипа в директории /docker-monolith/infra
+- Поднятие инстансов с помощью Terraform, их количество задается переменной;
+- Несколько плейбуков Ansible с использованием динамического инвентори для установки докера и запуска там образа приложения;
+- Шаблон пакера, который делает образ с уже установленным Docker.
+
+
+- Создал шаблон Packer для запекания образа в Yandex Cloud.
+
+docker.json 
+
+```JSON
+{
+    "variables": {
+           "zone": "ru-central1-a",
+           "instance_cores": "2"
+       },
+    "builders": [
+       {
+           "type": "yandex",
+           "service_account_key_file": "{{user `service_account_key_file`}}",
+           "folder_id": "{{user `folder_id`}}",
+           "source_image_family": "{{user `source_image_family`}}",
+           "image_name": "docker-host-{{timestamp}}",
+           "image_family": "ubuntu-docker-host",
+           "ssh_username": "ubuntu",
+           "platform_id": "standard-v1",
+           "zone": "{{user `zone`}}",
+           "instance_cores": "{{user `instance_cores`}}",
+       "use_ipv4_nat" : "true"
+       }
+   ],
+   "provisioners": [
+       {
+           "type": "ansible",
+           "user": "ubuntu",
+           "playbook_file": "{{ pwd }}/ansible/playbooks/install_docker.yml"
+       }
+   ]
+}
+```
+
+При создании образа выполняется установка `docker` c помощью ansible-плейбука.
+
+install_docker.yml
+
+```yaml
+---
+    - hosts: all
+      become: true
+    
+      tasks:
+        - name: Install aptitude using apt
+          apt: name=aptitude state=latest update_cache=yes force_apt_get=yes
+    
+        - name: Install required system packages
+          apt: name={{ item }} state=latest update_cache=yes
+          loop: [ 'apt-transport-https', 'ca-certificates', 'curl', 'software-properties-common', 'python3-pip', 'virtualenv', 'python3-setuptools']
+    
+        - name: Add Docker GPG apt Key
+          apt_key:
+            url: https://download.docker.com/linux/ubuntu/gpg
+            state: present
+    
+        - name: Add Docker Repository
+          apt_repository:
+            repo: deb https://download.docker.com/linux/ubuntu bionic stable
+            state: present
+    
+        - name: Update apt and install docker-ce
+          apt: update_cache=yes name=docker-ce state=latest
+    
+        - name: Install Docker Module for Python
+          pip:
+            name: docker
+```
+
+Запустил сборку образа:
+
+```bash
+cd docker-monolith/infra
+packer validate -var-file=packer/variables.json packer/docker.json
+packer build -var-file=packer/variables.json packer/docker.json
+```
+
+- Создал шаблон terraform для разворачивания инстансов с docker на основе шаблона packer.
+
+main.yml
+
+```
+provider "yandex" {
+  service_account_key_file = var.service_account_key_file
+  cloud_id                 = var.cloud_id
+  folder_id                = var.folder_id
+  zone                     = var.zone
+}
+
+resource "yandex_compute_instance" "vm-app" {
+  count = var.count_instance
+  name = "reddit-app-${count.index}"
+  zone = var.zone
+
+  resources {
+    cores  = 2
+    memory = 2
+  }
+
+  boot_disk {
+    initialize_params {
+      image_id = var.image_id
+    }
+  }
+
+  network_interface {
+    # Указан id подсети default-ru-central1-a
+    subnet_id = var.subnet_id
+    nat       = true
+  }
+
+  metadata = {
+    ssh-keys = "ubuntu:${file(var.public_key_path)}"
+  }
+
+}
+
+  # Cоздаем для ansible динамический файл инвентори ../ansible/inventory.ini c ip-адресами инстансов.
+  # Генерация происходит на основе шаблона templates/inventory.tpl. 
+  resource "local_file" "inventory" {
+  content = templatefile("${path.module}/templates/inventory.tpl",
+    {
+      app_hosts = yandex_compute_instance.vm-app.*.network_interface.0.nat_ip_address
+    }
+  )
+  filename = "../ansible/inventory.ini"
+
+}
+```
+
+Количество создаваемых инстансов задаем через переменную в `terraform.tfvars`:
+
+```
+variable count_instance {
+  # кол-во создаваемых инстансов
+  default = "2"
+}
+```
+
+При выполнении terraform генерирует динамический файл инвентори `../ansible/inventory.ini` с IP-адресами инстансов. Пример:
+
+```INI
+[docker_hosts]
+84.252.131.47
+84.252.129.18
+```
+
+Файл инвентори создается из шаблона `templates/inventory.tpl`:
+
+```
+[docker_hosts]
+%{ for ip in app_hosts ~}
+${ip}
+%{ endfor ~}
+```
+
+Создал инстансы через terraform:
+
+```bash
+cd docker-monolith/infra/terraform
+terraform init # переинициализируем
+terraform plan
+terraform apply
+```
+
+- запустил ansible-плейбук, который делает пулл образа докер из docker-hub и запускает из него контейнер с нашим приложением.
+
+run_app_in_docker.yml
+
+```yml
+--
+    - hosts: all
+      become: true
+      
+      vars:
+        default_container_name: reddit
+        default_container_image: abichutsky/otus-reddit:1.0
+    
+      tasks:
+      
+        - name: Pull Docker image
+          docker_image:
+            name: "{{ default_container_image }}"
+            source: pull
+
+        - name: Create container
+          docker_container:
+            name: "{{ default_container_name }}"
+            image: "{{ default_container_image }}"
+            state: started
+            ports:
+              - "9292:9292"
+          # restart: yes
+
+        - name: Check list of runned containers
+          command: docker ps
+          register: cont_list
+      
+        - debug: msg="{{ cont_list.stdout }}"
+```
+
+Запуск плейбука:
+
+```bash
+cd docker-monolith/infra/ansible
+ansible-playbook playbooks/run_app_in_docker.yml
+```
+
+Проверка:
+
+```
+TASK [debug] *******************************************************************
+ok: [84.252.131.47] => {
+    "msg": "CONTAINER ID   IMAGE                        COMMAND       CREATED         STATUS         PORTS                    NAMES\na46c05bc729b   abichutsky/otus-reddit:1.0   \"/start.sh\"   7 seconds ago   Up 3 seconds   0.0.0.0:9292->9292/tcp   reddit"
+}
+ok: [84.252.129.18] => {
+    "msg": "CONTAINER ID   IMAGE                        COMMAND       CREATED         STATUS         PORTS                    NAMES\n07b7b4bf6038   abichutsky/otus-reddit:1.0   \"/start.sh\"   7 seconds ago   Up 3 seconds   0.0.0.0:9292->9292/tcp   reddit"
+}
+
+PLAY RECAP *********************************************************************
+84.252.129.18              : ok=5    changed=3    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+84.252.131.47              : ok=5    changed=3    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+```
+
+Проверяем запуск приложения на каждом инстансе по ссылке:   
+http://<Публичный IP>:9292
