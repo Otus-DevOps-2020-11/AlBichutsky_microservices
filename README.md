@@ -312,7 +312,7 @@ packer validate -var-file=packer/variables.json packer/docker.json
 packer build -var-file=packer/variables.json packer/docker.json
 ```
 
-- Создал шаблон terraform для развертывания инстансов с docker в облаке на основе шаблона packer:
+- Создал шаблон terraform для развертывания инстансов с docker в облаке из образа packer:
 
 main.yml
 
