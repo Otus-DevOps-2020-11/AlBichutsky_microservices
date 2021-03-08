@@ -28,7 +28,7 @@ yum install -y docker-compose
 docker-compose version
 ```
 
-Установка `docker-machine`. 
+Установка `docker-machine`:
 
 ```bash
 # Подробнее: https://docs.docker.com/machine/install-machine/
@@ -47,7 +47,7 @@ mv /tmp/docker-machine /usr/bin/docker-machine
  docker inspect <u_image_id>
 ```
 
-### Управление docker
+### Использование docker
 
 #### Получение сведений о контейнерах и образах
 
@@ -154,7 +154,7 @@ docker-machine env docker-host
 eval $(docker-machine env docker-host)  # переключиться для управления хостом "docker-host" в окружении Yandex Cloud
 ```
 
-### Управление `docker-machine`
+### Использование docker-machine
 
 ```bash
 docker-machine --help  # справка
@@ -232,6 +232,7 @@ docker run --name reddit -d -p 9292:9292 abichutsky/otus-reddit:1.0 # запус
 - Несколько плейбуков Ansible с использованием динамического инвентори для установки докера и запуска там образа приложения;
 - Шаблон пакера, который делает образ с уже установленным Docker.
 
+#### Описание
 
 - Создал шаблон Packer для запекания образа в Yandex Cloud.
 
@@ -268,7 +269,7 @@ docker.json
 }
 ```
 
-При создании образа выполняется установка `docker` c помощью ansible-плейбука.
+При создании образа выполняется установка docker c помощью ansible-плейбука.
 
 install_docker.yml
 
@@ -373,7 +374,7 @@ variable count_instance {
 }
 ```
 
-При выполнении terraform генерирует динамический файл инвентори `../ansible/inventory.ini` с IP-адресами инстансов. Пример:
+В процессе выполнения terraform генерирует динамический файл инвентори `../ansible/inventory.ini` с IP-адресами инстансов. Пример:
 
 ```INI
 [docker_hosts]
@@ -381,7 +382,7 @@ variable count_instance {
 84.252.129.18
 ```
 
-Файл инвентори создается из шаблона `templates/inventory.tpl`:
+Сам файл инвентори создается из шаблона `templates/inventory.tpl`:
 
 ```
 [docker_hosts]
@@ -447,10 +448,12 @@ ansible-playbook playbooks/run_app_in_docker.yml
 ```
 TASK [debug] *******************************************************************
 ok: [84.252.131.47] => {
-    "msg": "CONTAINER ID   IMAGE                        COMMAND       CREATED         STATUS         PORTS                    NAMES\na46c05bc729b   abichutsky/otus-reddit:1.0   \"/start.sh\"   7 seconds ago   Up 3 seconds   0.0.0.0:9292->9292/tcp   reddit"
+    "msg": "CONTAINER ID   IMAGE                        COMMAND       CREATED         STATUS         PORTS                    NAMES
+    \na46c05bc729b   abichutsky/otus-reddit:1.0   \"/start.sh\"   7 seconds ago   Up 3 seconds   0.0.0.0:9292->9292/tcp   reddit"
 }
 ok: [84.252.129.18] => {
-    "msg": "CONTAINER ID   IMAGE                        COMMAND       CREATED         STATUS         PORTS                    NAMES\n07b7b4bf6038   abichutsky/otus-reddit:1.0   \"/start.sh\"   7 seconds ago   Up 3 seconds   0.0.0.0:9292->9292/tcp   reddit"
+    "msg": "CONTAINER ID   IMAGE                        COMMAND       CREATED         STATUS         PORTS                    NAMES
+    \n07b7b4bf6038   abichutsky/otus-reddit:1.0   \"/start.sh\"   7 seconds ago   Up 3 seconds   0.0.0.0:9292->9292/tcp   reddit"
 }
 
 PLAY RECAP *********************************************************************
