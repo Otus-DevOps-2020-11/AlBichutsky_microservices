@@ -3,7 +3,7 @@ AlBichutsky microservices repository
 
 ### Домашнее задание №12
 
-Установил последние версии `docker`, `docker-compose`, `docker-machine`:
+- Установил последние версии `docker`, `docker-compose`, `docker-machine`:
 
 Установка `docker`:
 
@@ -234,7 +234,7 @@ docker run --name reddit -d -p 9292:9292 abichutsky/otus-reddit:1.0 # запус
 
 #### Описание
 
-- Создал шаблон Packer для запекания образа в Yandex Cloud.
+- Создал шаблон Packer для запекания образа в облаке:
 
 docker.json 
 
@@ -269,7 +269,7 @@ docker.json
 }
 ```
 
-При создании образа выполняется установка docker c помощью ansible-плейбука.
+При создании образа выполняется установка docker c помощью ansible-плейбука:
 
 install_docker.yml
 
@@ -312,7 +312,7 @@ packer validate -var-file=packer/variables.json packer/docker.json
 packer build -var-file=packer/variables.json packer/docker.json
 ```
 
-- Создал шаблон terraform для разворачивания инстансов с docker на основе шаблона packer.
+- Создал шаблон terraform для развертывания инстансов с docker в облаке на основе шаблона packer:
 
 main.yml
 
@@ -374,7 +374,8 @@ variable count_instance {
 }
 ```
 
-В процессе выполнения terraform генерирует динамический файл инвентори `../ansible/inventory.ini` с IP-адресами инстансов. Пример:
+В процессе выполнения terraform генерирует динамический файл инвентори `../ansible/inventory.ini` с IP-адресами инстансов.  
+Пример:
 
 ```INI
 [docker_hosts]
@@ -400,7 +401,7 @@ terraform plan
 terraform apply
 ```
 
-- запустил ansible-плейбук, который делает пулл образа докер из docker-hub и запускает из него контейнер с нашим приложением.
+- Создал ansible-плейбук, который делает пулл образа из docker-hub и запускает из него контейнер с нашим приложением.
 
 run_app_in_docker.yml
 
