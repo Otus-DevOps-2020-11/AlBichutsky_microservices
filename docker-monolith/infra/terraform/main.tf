@@ -7,7 +7,7 @@ provider "yandex" {
 
 resource "yandex_compute_instance" "vm-app" {
   count = var.count_instance
-  name = "reddit-app-${count.index}"
+  name = "reddit-app-${count.index}"  # назначаем имена инстансам с порядковыми номерами
   zone = var.zone
 
   resources {

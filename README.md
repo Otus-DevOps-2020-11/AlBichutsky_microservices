@@ -130,7 +130,6 @@ yc init
 - В Yandex Cloud создал новый инстанс для docker из образа ubuntu-1804-lts:
 
 ```bash
-``bash
 yc compute instance create \
   --name docker-host \
   --zone ru-central1-a \
@@ -326,7 +325,7 @@ provider "yandex" {
 
 resource "yandex_compute_instance" "vm-app" {
   count = var.count_instance
-  name = "reddit-app-${count.index}"
+  name = "reddit-app-${count.index}"  # назначаем имена инстансам с порядковыми номерами
   zone = var.zone
 
   resources {
@@ -357,7 +356,7 @@ resource "yandex_compute_instance" "vm-app" {
   resource "local_file" "inventory" {
   content = templatefile("${path.module}/templates/inventory.tpl",
     {
-      app_hosts = yandex_compute_instance.vm-app.*.network_interface.0.nat_ip_address
+      docker_hosts = yandex_compute_instance.vm-app.*.network_interface.0.nat_ip_address
     }
   )
   filename = "../ansible/inventory.ini"
@@ -387,7 +386,7 @@ variable count_instance {
 
 ```
 [docker_hosts]
-%{ for ip in app_hosts ~}
+%{ for ip in docker_hosts ~}
 ${ip}
 %{ endfor ~}
 ```
