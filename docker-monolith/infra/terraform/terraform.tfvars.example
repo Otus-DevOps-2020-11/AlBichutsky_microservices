@@ -1,0 +1,7 @@
+cloud_id                 = "b1gd5em3pdtbge1poel3"
+folder_id                = "b1gww2w8dfrmwdwuwtpg"
+public_key_path          = "~/.ssh/appuser.pub"
+private_key_path         = "~/.ssh/appuser" # указываем приватный ключ для подключения провижионеров
+image_id                 = "fd84f5nmbwfqwvm6wof1"
+subnet_id                = "e9brdh96wgwukwfwh0fm"
+service_account_key_file = "~/key.json"
