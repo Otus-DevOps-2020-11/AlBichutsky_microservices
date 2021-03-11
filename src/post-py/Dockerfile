@@ -1,10 +1,7 @@
 FROM python:3.6.0-alpine
 
-LABEL Name="App posts service"
-LABEL Version="0.1"
-
 WORKDIR /app
-ADD . /app
+COPY . /app
 
 RUN apk --no-cache --update add build-base && \
     pip install -r /app/requirements.txt && \
