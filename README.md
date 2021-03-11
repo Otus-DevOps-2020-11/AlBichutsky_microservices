@@ -1,7 +1,7 @@
 # AlBichutsky_microservices
 AlBichutsky microservices repository
 
-## Домашнее задание №12
+# Домашнее задание №12
 
 - Установил последние версии `docker`, `docker-compose`, `docker-machine`:
 
