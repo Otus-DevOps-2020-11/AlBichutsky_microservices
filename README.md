@@ -1,7 +1,7 @@
 # AlBichutsky_microservices
 AlBichutsky microservices repository
 
-### Домашнее задание №12
+# Домашнее задание №12
 
 - Установил последние версии `docker`, `docker-compose`, `docker-machine`:
 
@@ -463,3 +463,298 @@ PLAY RECAP *********************************************************************
 
 Проверяем запуск приложения на каждом инстансе по ссылке:   
 http://<Публичный IP>:9292 (актуальные ip-адреса для проверки находятся в inventory.ini)
+
+
+# Домашнее задание №13
+
+* описываем и собираем Docker-образ для сервисного приложения;
+* оптимизируем Docker-образы;
+* запускаем приложение из собранного Docker-образа;
+
+## Описание
+
+*    Скопировал файлы приложения в папку `src`.  Оно разбито на несколько компонентов:
+
+     `post-py` - сервис отвечающий за написание постов;   
+     `comment` - сервис отвечающий за написание комментариев;  
+     `ui` - веб-интерфейс, работающий с другими сервисами;  
+
+*    Создал Docker-файлы для подготовки образов. Инструкцию `ADD` заменил на `COPY` (рекомендовано).  
+
+     **./post-py/Dockerfile**
+
+     ```
+     FROM python:3.6.0-alpine
+
+     WORKDIR /app
+     COPY . /app
+
+     RUN apk --no-cache --update add build-base && \
+     pip install -r /app/requirements.txt && \
+     apk del build-base
+
+     ENV POST_DATABASE_HOST post_db
+     ENV POST_DATABASE posts
+
+     ENTRYPOINT ["python3", "post_app.py"]
+     ```
+
+     **./comment/Dockerfile**
+
+     ```
+     FROM ruby:2.2
+     
+     RUN apt-get update -qq && apt-get install -y build-essential
+     
+     ENV APP_HOME /app
+     RUN mkdir $APP_HOME
+     WORKDIR $APP_HOME
+
+     COPY Gemfile* $APP_HOME/
+     RUN bundle install
+     COPY . $APP_HOME
+
+     ENV COMMENT_DATABASE_HOST comment_db
+     ENV COMMENT_DATABASE comments
+
+     CMD ["puma"]
+     ```
+
+     **./ui/Dockerfile (1-й вариант сборки)**
+
+     ```
+     FROM ruby:2.2
+     RUN apt-get update -qq && apt-get install -y build-essential
+
+     ENV APP_HOME /app
+     RUN mkdir $APP_HOME
+
+     WORKDIR $APP_HOME
+     ADD Gemfile* $APP_HOME/
+     RUN bundle install
+     ADD . $APP_HOME
+
+     ENV POST_SERVICE_HOST post
+     ENV POST_SERVICE_PORT 5000
+     ENV COMMENT_SERVICE_HOST comment
+     ENV COMMENT_SERVICE_PORT 9292
+
+     CMD ["puma"]
+     ```
+
+*   Подключился к ранее созданному хосту с docker "docker-host" в Yandex Cloud:
+
+     ```
+     eval $(docker-machine env docker-host) # переходим в окружение "docker-host"
+     docker-machine ls # проверяем, что хост зарегистрирован и активен
+     docker rm -f $(docker ps -q) # удалим старые запущенные контейнеры
+     ```
+
+*    Собрал образы с нашими сервисами и скачал готовый образ MongoDB (БД используют сервисы `comment` и `post`):
+
+     ```
+     docker build -t abichutsky/post:1.0 ./post-py
+     docker build -t abichutsky/comment:1.0 ./comment
+     docker build -t abichutsky/ui:1.0 ./ui
+     docker pull mongo:latest
+
+     # проверяем создание образов
+     docker images  
+     ```
+
+*    Создал bridge-сеть для контейнеров `reddit`, т.к. сетевые алиасы не работают в дефолтной сети. 
+Затем запустил контейнеры.
+
+     ```
+     # создаем сеть
+     docker network create reddit
+     docker network ls # проверяем создание сети
+
+     # запускаем контейнеры с алиасами
+     docker run -d --network=reddit --network-alias=post_db --network-alias=comment_db mongo:latest
+     docker run -d --network=reddit --network-alias=post abichutsky/post:1.0
+     docker run -d --network=reddit --network-alias=comment abichutsky/comment:1.0
+     docker run -d --network=reddit -p 9292:9292 abichutsky/ui:1.0
+
+     # проверяем запуск контейнеров
+     docker ps
+     ```
+
+     Проверяем, что приложение доступно по ссылке http://<Публичный IP "docker-host">:9292
+
+*    Затем пересоздал Dockerfile для `ui` с новыми инструкциями:
+
+     **./ui/Dockerfile (2-й вариант сборки)**
+
+     ```
+     FROM ubuntu:16.04
+     RUN apt-get update \
+         && apt-get install -y ruby-full ruby-dev build-essential \
+         && gem install bundler --no-ri --no-rdoc
+
+     ENV APP_HOME /app
+     RUN mkdir $APP_HOME
+
+     WORKDIR $APP_HOME
+     COPY Gemfile* $APP_HOME/
+     RUN bundle install
+     COPY . $APP_HOME
+
+     ENV POST_SERVICE_HOST post
+     ENV POST_SERVICE_PORT 5000
+     ENV COMMENT_SERVICE_HOST comment
+     ENV COMMENT_SERVICE_PORT 9292
+
+     CMD ["puma"]
+     ```
+
+*    Собрал образ `ui:2.0`, запустил новые копии контейнеров c `ui:2.0` вместо `ui:1.0`
+
+     ```
+     docker build -t abichutsky/ui:2.0 ./ui 
+
+     docker kill $(docker ps -q) # остановим все запущенные контейнеры 
+     docker run -d --network=reddit --network-alias=post_db --network-alias=comment_db mongo:latest
+     docker run -d --network=reddit --network-alias=post abichutsky/post:1.0
+     docker run -d --network=reddit --network-alias=comment abichutsky/comment:1.0
+     docker run -d --network=reddit -p 9292:9292 abichutsky/ui:2.0
+     ```
+
+     Проверяем, что приложение доступно по ссылке http://<Публичный IP "docker-host">:9292  
+     Поскольку контейнер с `mongodb` был остановлен и пересоздан, комментарии не сохранились.
+
+*    Создал docker volume c именем `reddit_db`,  подключил его к контейнеру с MongoDB, затем запустил новые копии контейнеров:
+
+     ```
+     # создать volume
+     docker volume create reddit_db
+     
+     docker kill $(docker ps -q) # остановим все запущенные контейнеры 
+
+     docker run -d --network=reddit --network-alias=post_db --network-alias=comment_db -v reddit_db:/data/db mongo:latest
+     docker run -d --network=reddit --network-alias=post abichutsky/post:1.0
+     docker run -d --network=reddit --network-alias=comment abichutsky/comment:1.0
+     docker run -d --network=reddit -p 9292:9292 abichutsky/ui:2.0
+     ```
+
+     Проверка: перейдем по ссылке http://<Публичный IP "docker-host">:9292 и добавим пост.  
+     После этого перезапустим копии контейнеров. Посты приложения будут сохранены, т.к. данные БД хранятся на томе.
+
+### Описание инструкций Dockerfile:  
+
+*    
+     **Инструкции:**
+
+     `FROM` — задаёт базовый (родительский) образ.  
+     `LABEL` — описывает метаданные. Например — сведения о том, кто создал и поддерживает образ.  
+     `ENV` — устанавливает постоянные переменные среды.  
+     `RUN` — выполняет команду и создаёт слой образа. Используется для установки в контейнер пакетов.  
+     `COPY` — копирует в контейнер файлы и папки (рекомендуется вместо `ADD`).  
+     `ADD` — копирует файлы и папки в контейнер, может распаковывать локальные .tar-файлы.  
+     `CMD` — описывает команду с аргументами, которую нужно выполнить когда контейнер будет запущен. Аргументы могут быть переопределены при запуске контейнера. В файле может присутствовать лишь одна инструкция CMD.  
+     `WORKDIR` — задаёт рабочую директорию для следующей инструкции.  
+     `ARG` — задаёт переменные для передачи Docker во время сборки образа.  
+     `ENTRYPOINT` — предоставляет команду с аргументами для вызова во время выполнения контейнера. Аргументы не переопределяются.  
+     `EXPOSE` — указывает на необходимость открыть порт.  
+     `VOLUME` — создаёт точку монтирования для работы с постоянным хранилищем.  
+
+### Задание со *
+
+*    
+     **Задание 1**
+
+     - Запустите контейнеры с другими сетевыми алиасами
+     - Адреса для взаимодействия контейнеров задаются через ENV-переменные внутри Dockerfile'ов
+     - При запуске контейнеров (docker run) задайте им переменные окружения соответствующие новым сетевым алиасам, не пересоздавая образ
+     - Проверьте работоспособность сервиса
+
+     Решение
+
+     Добавил ко всем используемым ранее алиасам название `reddit_`.
+     При изменении сетевых алиасов мы должны переопределить и ENV-переменные Dockerfile с помощью ключа `--env`, поскольку они отвечают за сетевое взаимодействие контейнеров между собой.
+
+     ```
+     docker kill $(docker ps -q) # останавливаем контейнеры
+
+     docker run -d --network=reddit --network-alias=reddit_post_db --network-alias=reddit_comment_db mongo:latest
+     docker run -d --network=reddit --network-alias=reddit_post --env POST_DATABASE_HOST=reddit_post_db abichutsky/post:1.0
+     docker run -d --network=reddit --network-alias=reddit_comment --env COMMENT_DATABASE_HOST=reddit_comment_db  abichutsky/comment:1.0
+     docker run -d --network=reddit -p 9292:9292 --env POST_SERVICE_HOST=reddit_post --env COMMENT_SERVICE_HOST=reddit_comment abichutsky/ui:1.0
+     ```
+*
+     **Задание 2**
+
+     - Соберите образ на основе Alpine Linux
+     - Придумайте еще способы уменьшить размер образа
+
+     Решение
+
+     Создал Dockerfile.1 для сервиса `ui`.
+     Оптимизация размера образа выполняется за cчет опции установки пакетов `--no-cache` и удаления кэша `rm -rf /var/cache/apk/*` (если что-то осталось).
+
+     ```
+     FROM alpine:3.12.4
+
+     LABEL Name="Reddit App UI for Alpine"
+     LABEL Version="1.0"
+
+     RUN apk --update add --no-cache \
+         ruby-full \
+         ruby-dev \
+         build-base \
+         && gem install bundler:1.17.2 --no-document \
+         && rm -rf /var/cache/apk/*
+
+     ENV APP_HOME /app
+     RUN mkdir $APP_HOME
+
+     WORKDIR $APP_HOME
+     COPY Gemfile* $APP_HOME/
+     RUN bundle install
+     COPY . $APP_HOME
+
+     ENV POST_SERVICE_HOST post
+     ENV POST_SERVICE_PORT 5000
+     ENV COMMENT_SERVICE_HOST comment
+     ENV COMMENT_SERVICE_PORT 9292
+
+     CMD ["puma"]
+     ```
+
+     Создать образ `alpine_ui:1.0` и запустить копии контейнеров, включая `alpine_ui:1.0`:
+
+     ```
+     docker build -f ./ui/Dockerfile.1 -t abichutsky/alpine_ui:1.0 ./ui
+     
+     docker kill $(docker ps -q) # останавливаем контейнеры
+     
+     docker run -d --network=reddit --network-alias=post_db --network-alias=comment_db -v reddit_db:/data/db mongo:latest
+     docker run -d --network=reddit --network-alias=post abichutsky/post:1.0
+     docker run -d --network=reddit --network-alias=comment abichutsky/comment:1.0
+     docker run -d --network=reddit -p 9292:9292 abichutsky/alpine_ui:1.0
+     ```
+     
+     Проверка
+     
+     ```
+     $ docker images
+     REPOSITORY               TAG            IMAGE ID       CREATED        SIZE
+     abichutsky/alpine_ui     1.0            85612b6d9145   17 hours ago   275MB
+     abichutsky/ui            2.0            1457935b9695   20 hours ago   458MB
+     abichutsky/ui            1.0            85e79518e52c   20 hours ago   771MB
+     abichutsky/comment       1.0            35876ffbb375   22 hours ago   768MB
+     abichutsky/post          1.0            ee1a47582346   22 hours ago   110MB
+     ...
+     ```
+     
+     ```
+     $ docker ps
+     CONTAINER ID   IMAGE                      COMMAND                  CREATED        STATUS        PORTS                    NAMES
+     5af697ade0dd   abichutsky/alpine_ui:1.0   "puma"                   17 hours ago   Up 17 hours   0.0.0.0:9292->9292/tcp  nifty_mclean
+     083917c3ae58   abichutsky/comment:1.0     "puma"                   17 hours ago   Up 17 hours                            hopeful_darwin
+     b3769845c1ea   abichutsky/post:1.0        "python3 post_app.py"    17 hours ago   Up 17 hours                            quizzical_maxwell
+     ea211f9b0e8c   mongo:latest               "docker-entrypoint.s…"   17 hours ago   Up 17 hours   27017/tcp                infallible_chatelet
+     ```
+
+     Проверяем, что приложение доступно по ссылке: http://<Публичный IP "docker-host">:9292  
+     В моем случае: http://84.252.129.111:9292
