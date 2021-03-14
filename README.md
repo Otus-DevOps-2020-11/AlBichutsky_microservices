@@ -79,45 +79,45 @@ docker diff <container>  # посмотреть изменения в файло
 # Опции:
 # -i, --interractive – запустить контейнер в foreground-режиме
 # -d, --detach – запустить контейнер в background-режиме
-# -t – создать TTY (запустить терминал)
+# -t, --tty – предоставить терминал
 # --name – присвоить имя контейнеру
 # --rm – удалить контейнер после выхода из него
 
-docker run -it <image> /bin/bash # запустить контейнер с TTY в foreground режиме
+docker run -it <image> /bin/bash # запустить контейнер и выполнить bash в терминале в foreground режиме
 root@<container_id>:/# echo 'Hello world!' > /tmp/file
 root@<container_id>:/# exit
 
-docker run -it -rm <image> /bin/bash 
-docker run --name <container> --rm -it <image> bash
+docker run -it -rm <image> /bin/bash # запустить контейнер и выполнить bash в терминале в foreground режиме, после выхода контейнер будет удален
 
-docker run -dt <image>  # запустить контейнер с TTY в background режиме
+docker run -dt <image> # запустить контейнер в background режиме
 
-docker start <container>  # запустить остановленный (уже созданный) контейнер
-
-docker attach <container> # присоеденить терминал к созданному контейнеру
+# Работа с остановленным контейнером
+docker start <container> # запустить остановленный (уже созданный) контейнер
+docker attach <container> # присоеденить к нему терминал
 root@<u_container_id>:/# cat /tmp/file
 Hello world!
 
-docker exec -it <container> bash  # запустить новый процесс bash внутри контейнера
+docker exec -it <container> bash # запустить новый процесс bash внутри контейнера
 root@<u_container_id>
 ```
 
 #### Остановка и удаление контейнеров
 
 ```bash
-docker stop <container>  # остановить контейнер
+docker stop <container1>  # остановить контейнер
 
-docker kill $(docker ps -q)  # послать SIGKILL запущенным контейнерам
+docker kill $(docker ps -q)  # Остановить работающие контейнеры (послать SIGKILL)
 
-docker rm <container> # удалить контейнер (если указываем имя - удаляются все с данным именем)
-docker rm -f <container>  # удалить работающий контейнер
+docker rm <container1> <container2> # удалить незапущенные контейнеры
+docker rm -f <container1> <container2> # удалить запущенные контейнеры
 docker rm $(docker ps -a -q) # удалить все незапущенные контейнеры
+dpcker rm -f $(docker ps -q) # удалить все запущенные контейнеры
 
-docker rmi <image>  # удалить образ, если нет запущенных контейнеров
-docker rmi -f <image>  # принудительно удалить образ
+docker rmi <image1> <image2> # удалить образы (не будут удалены, если есть запущенные контейнеры)
+docker rmi -f <image> # удалить образ, даже если контейнер запущен
 docker rmi $(docker images -q) # удалить все сохраненные образы
 
-docker prune  # удалить неиспользуемые данные, см. docker system df
+docker prune # удалить неиспользуемые данные, см. docker system df
 ```
 
 - В Yandex Cloud получил токен и проинициализировал папку `Default`:
@@ -157,17 +157,18 @@ eval $(docker-machine env docker-host)  # переключиться для уп
 
 ```bash
 docker-machine --help  # справка
-docker-machine create ...  # создать машину с docker
+docker-machine create ...  # создать или проинициализировать docker-хост
 
-docker-machine ls  # отобразить список зарегистрированных машин с docker
+docker-machine ls  # показать список проинициализированных и активных docker-хостов
 NAME          ACTIVE   DRIVER    STATE     URL                         SWARM   DOCKER     ERRORS
 docker-host   *        generic   Running   tcp://84.252.129.111:2376           v20.10.5   
 
-docker-machine <имя машины> status  # проверить состояние машины с docker
-docker-machine <имя машины> rm  # удалить машину с docker
+docker-machine <имя машины> status  # проверить состояние docker-хоста
+docker-machine ssh <имя машины> # подключиться по ssh
+docker-machine <имя машины> rm  # удалить docker-хост
 
-eval $(docker-machineenv --unset)  # выйти из окружения docker-machine
-eval $(docker-machine env <имя машины>)  # переключиться к окружению docker-machine с именем <имя машины>
+eval $(docker-machineenv --unset) # выйти из окружения docker-machine (к локальному docker)
+eval $(docker-machine env <имя машины>)  # переключиться к окружению docker-хоста <имя машины>
 ```
 
 - Создал `Dockerfile` c файлами `mongod.conf`, `start.sh`, `db_config`.  
@@ -758,3 +759,253 @@ http://<Публичный IP>:9292 (актуальные ip-адреса для
 
      Проверяем, что приложение доступно по ссылке: http://<Публичный IP "docker-host">:9292  
      В моем случае: http://84.252.129.111:9292
+
+     
+# Домашнее задание №12
+
+## Docker: сети, docker-compose
+
+- Работа с сетями в Docker
+- Использование docker-compose
+
+Подключаемся к окружению хоста "docker-host" в Yandex Cloud, чтобы управлять `docker` со своей локальной машины:
+
+```
+eval $(docker-machine env docker-host) # переходим в окружение "docker-host"
+docker-machine ls # проверяем, что хост зарегистрирован и активен
+```
+
+Для подключения к docker-хосту используем команды:
+
+```
+docker-machine ssh docker-host 
+```
+
+или
+```
+ssh -i ~/.ssh/id_rsa yc-user@84.252.129.111
+...
+```
+
+
+### None netwok driver
+
+Внутри контейнера из сетевых интерфейсов существует только loopback. Сетевой стек работает для localhost без возможности контактировать с внешним миром. Подходит для запуска сетевых сервисов внутри контейнера, но только для локальных экспериментов.
+
+
+Проверка:
+
+Запускаем контейнер с использованием `none-драйвера` из образа `joffotron/docker-net-tools`
+
+```
+docker run -ti --rm --network none joffotron/docker-net-tools -c ifconfig
+
+lo        Link encap:Local Loopback  
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+```
+
+### Host netwok driver
+
+Контейнер использует network namespace docker-хоста. Сетевые интерфейсы в контейнере и на хосте одинаковые.
+
+Проверка:
+
+Запускаем контейнер с использованием `host-драйвера` из образа `joffotron/docker-net-tools`
+
+```bash
+docker run -ti --rm --network host joffotron/docker-net-tools -c ifconfig
+
+br-251a47bf0c24 Link encap:Ethernet  HWaddr 02:42:F0:3D:CB:FE  
+          inet addr:172.18.0.1  Bcast:172.18.255.255  Mask:255.255.0.0
+          inet6 addr: fe80::42:f0ff:fe3d:cbfe%32739/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:788 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:855 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:286436 (279.7 KiB)  TX bytes:241568 (235.9 KiB)
+
+docker0   Link encap:Ethernet  HWaddr 02:42:67:4B:5A:4C  
+          inet addr:172.17.0.1  Bcast:172.17.255.255  Mask:255.255.0.0
+          inet6 addr: fe80::42:67ff:fe4b:5a4c%32739/64 Scope:Link
+          UP BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:82927 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:112318 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:5437907 (5.1 MiB)  TX bytes:1008029212 (961.3 MiB)
+
+eth0      Link encap:Ethernet  HWaddr D0:0D:F6:A5:A4:A4  
+          inet addr:10.130.0.32  Bcast:10.130.0.255  Mask:255.255.255.0
+          inet6 addr: fe80::d20d:f6ff:fea5:a4a4%32739/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:618985 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:458968 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:1876066979 (1.7 GiB)  TX bytes:280541025 (267.5 MiB)
+
+lo        Link encap:Local Loopback  
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          inet6 addr: ::1%32739/128 Scope:Host
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:552706 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:552706 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:82583417 (78.7 MiB)  TX bytes:82583417 (78.7 MiB)
+
+veth1ff5366 Link encap:Ethernet  HWaddr 06:80:1A:89:93:37  
+          inet6 addr: fe80::480:1aff:fe89:9337%32739/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:472615 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:465944 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:55470171 (52.9 MiB)  TX bytes:47420470 (45.2 MiB)
+
+veth5c64a56 Link encap:Ethernet  HWaddr 5E:F4:AD:75:65:B1  
+          inet6 addr: fe80::5cf4:adff:fe75:65b1%32739/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:999695 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:779614 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:105733292 (100.8 MiB)  TX bytes:124010511 (118.2 MiB)
+
+veth61704a7 Link encap:Ethernet  HWaddr 76:A1:D4:C8:60:51  
+          inet6 addr: fe80::74a1:d4ff:fec8:6051%32739/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:1091955 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:1648357 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:200920771 (191.6 MiB)  TX bytes:177867928 (169.6 MiB)
+
+vethf47f7f6 Link encap:Ethernet  HWaddr FE:0A:5E:A4:02:CF  
+          inet6 addr: fe80::fc0a:5eff:fea4:2cf%32739/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:1114067 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:784783 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0 
+          RX bytes:119475920 (113.9 MiB)  TX bytes:132302216 (126.1 MiB)
+```
+
+Вывод команды `docker-machine ssh docker-host ifconfig` показывает аналогичные интерфейсы на docker-хосте.
+
+
+### Изоляция сетей
+
+Network namespaces (простанство имен сетей) позволяет использовать изоляюцию сетей в контейнерах. 
+Запустим контейнеры в сетях `none` и `host` и проверим создание net-namespaces на docker-хосте:
+
+```bash
+# Подключаемся к docker-хосту
+ssh -i ~/.ssh/id_rsa yc-user@84.252.129.111
+# создадим симлинк
+sudo ln -s /var/run/docker/netns /var/run/netns
+# запустим контейнер в сети none
+docker run -ti --rm --network none joffotron/docker-net-tools -c ifconfig
+# Проверяем net-namespaces:
+sudo ip netns
+# в сети none (для loopback-интерфейса) создается свой net-namespace
+Error: Peer netns reference is invalid.
+Error: Peer netns reference is invalid.
+cd4afab32317
+default
+# запустим контейнер в сети host
+docker run -ti --rm --network host joffotron/docker-net-tools -c ifconfig
+# в сети host net-namespace не создается (есть только default)
+default
+```
+
+Выполним:
+
+```bash
+# Запустим контейнер c nginx
+docker run --network host -d nginx  # 4 раза
+# проверим запуск
+docker ps
+CONTAINER ID   IMAGE     COMMAND                  CREATED          STATUS          PORTS     NAMES
+6950cc487582   nginx     "/docker-entrypoint.…"   58 seconds ago   Up 57 seconds             distracted_bell
+# Вывод: запускается только один контейнер, остальные остановлены. 
+# Это связано с тем, что сеть запускаемых контейнеров, использующих host-драйвер - не изолирована, соответственно контейнеры не могут использовать одновременно сеть хоста для nginx (в общем namespace).   
+```
+
+### Bridge network driver
+
+```bash
+# Создать сеть с brige-драйвером
+docker network create <network_name> --driver bridge
+
+# Чтобы контейнеры могли общаться между собой по DNS-именам, указанным в ENV-переменных, назначаем им имена и алиасы:
+# --name <name_container>  - присовить имя (при иницализации контейнера можно задать только 1 имя) 
+# --network-alias <alias_name>  - присвоить алиас (можно задать множество множество)
+
+# Создать docker-сети
+docker network create <network_name> --subnet=NETWORK1/MASK # пример: --subnet=10.0.2.0/24
+docker network create <network_name> --subnet=NETWORK2/MASK # пример: --subnet=10.0.1.0/24
+
+# Запустить контейнер с назначением имени
+docker run -d --network=<network_name> -p <port>:<port> --name <container_name> <image> 
+docker run -d --network=<network_name> --name <container_name> <image>
+
+# Запустить контейнер с назначением имени и алиасов
+docker run -d --network=back_net --name <container_name> --network-alias=<name_alias1> --network-alias=<name_alias2> <image>
+
+# Подключить контейнер к сети
+docker network connect <network_name> <сontainer_name>
+
+# Посмотреть сети docker
+docker network ls
+```
+
+Исследуем brige-сеть
+
+```bash
+# подключимся к docker-хосту
+$ docker-machine ssh docker-host
+$ sudo apt-get update && sudo apt-get install bridge-utils
+
+# проверим brige-интерфейсы
+$ sudo docker network ls
+$ sudo ifconfig | grep br
+br-251a47bf0c24: flags=4099<UP,BROADCAST,MULTICAST>  mtu 1500
+        inet 172.18.0.1  netmask 255.255.0.0  broadcast 172.18.255.255
+br-3e91715a392f: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 172.19.0.1  netmask 255.255.0.0  broadcast 172.19.255.255
+br-410cdf95a2db: flags=4099<UP,BROADCAST,MULTICAST>  mtu 1500
+        inet 10.0.2.1  netmask 255.255.255.0  broadcast 10.0.2.255
+br-d59b8c806e7d: flags=4099<UP,BROADCAST,MULTICAST>  mtu 1500
+        inet 10.0.1.1  netmask 255.255.255.0  broadcast 10.0.1.255
+        inet 172.17.0.1  netmask 255.255.0.0  broadcast 172.17.255.255
+        inet 10.130.0.32  netmask 255.255.255.0  broadcast 10.130.0.255
+
+# проверим veth-интерфейсы - это те части виртуальных пар интерфейсов, которые лежат в сетевом пространстве хоста и также отображаются в ifconfig. Вторые их части лежат внутри контейнеров
+$ brctl show br-410cdf95a2db
+bridge name     bridge id               STP enabled     interfaces
+br-410cdf95a2db         8000.02423511218b       no
+
+# Посмотрим как контейнеры выходят во внешнюю сеть через NAT и 
+$ sudo iptables -nL -t nat 
+
+...
+Chain POSTROUTING (policy ACCEPT)
+target     prot opt source               destination         
+MASQUERADE  all  --  172.19.0.0/16        0.0.0.0/0           
+MASQUERADE  all  --  10.0.1.0/24          0.0.0.0/0           
+MASQUERADE  all  --  10.0.2.0/24          0.0.0.0/0           
+MASQUERADE  all  --  172.18.0.0/16        0.0.0.0/0           
+MASQUERADE  all  --  172.17.0.0/16        0.0.0.0/0           
+MASQUERADE  tcp  --  172.19.0.3           172.19.0.3           tcp dpt:9292
+...
+
+# Здесь же видим правило DNAT, отвечающее за перенаправление трафика на адреса конкретных # контейнеров
+DNAT       tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:9292 to:172.19.0.3:9292
+
+# Проверим, что docker-proxy слушает tcp-порт 9292
+$ ps ax | grep docker-proxy
+ 1771 pts/1    R+     0:00 grep --color=auto docker-proxy
+30670 ?        Sl     0:00 /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 9292 -container-ip 172.19.0.3 -container-port 9292
+```
+
+### docker-compose
+
