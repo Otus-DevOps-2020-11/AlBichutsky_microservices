@@ -761,41 +761,45 @@ http://<Публичный IP>:9292 (актуальные ip-адреса для
      В моем случае: http://84.252.129.111:9292
 
      
-# Домашнее задание №12
-
+# Домашнее задание №12   
 ## Docker: сети, docker-compose
 
 - Работа с сетями в Docker
 - Использование docker-compose
 
-Подключаемся к окружению хоста "docker-host" в Yandex Cloud, чтобы управлять `docker` со своей локальной машины:
+### Описание
 
-```
-eval $(docker-machine env docker-host) # переходим в окружение "docker-host"
+- Подключился к окружению удаленного docker-хоста:
+
+```bash
+eval $(docker-machine env docker-host) # переходим в окружение docker-хоста "docker-host" в Yandex Cloud
 docker-machine ls # проверяем, что хост зарегистрирован и активен
+# далее можем использовать docker CLI для управления хостом со своей локальной машины, например
+docker ps
 ```
 
-Для подключения к docker-хосту используем команды:
+Подключиться к удаленному docker-хосту по ssh:
 
-```
-docker-machine ssh docker-host 
-```
-
-или
-```
+```bash
+docker-machine ssh docker-host # актуально для выполнения комманд на самом хосте
+# что аналогично
 ssh -i ~/.ssh/id_rsa yc-user@84.252.129.111
-...
 ```
 
+- Запустил контейнеры с использованием драйверов сети:
+   - `none`
+   - `host`
+   - `bridge`
+  
+ При запуске используется ключ: `--network <none>, <host>, <bridge>`
+
+Для проверок используется образ `joffotron/docker-net-tools` с сетевыми утилитами.
 
 ### None netwok driver
 
-Внутри контейнера из сетевых интерфейсов существует только loopback. Сетевой стек работает для localhost без возможности контактировать с внешним миром. Подходит для запуска сетевых сервисов внутри контейнера, но только для локальных экспериментов.
-
+Внутри контейнера из сетевых интерфейсов существует только loopback. Сетевой стек работает для localhost без возможности контактировать с внешним миром. Подходит для запуска сетевых сервисов внутри контейнера для локальных экспериментов.
 
 Проверка:
-
-Запускаем контейнер с использованием `none-драйвера` из образа `joffotron/docker-net-tools`
 
 ```
 docker run -ti --rm --network none joffotron/docker-net-tools -c ifconfig
@@ -811,11 +815,16 @@ lo        Link encap:Local Loopback
 
 ### Host netwok driver
 
-Контейнер использует network namespace docker-хоста. Сетевые интерфейсы в контейнере и на хосте одинаковые.
+Контейнер использует network namespace (пространство имен) docker-хоста.  
+Сетевые интерфейсы хоста и контейнера одинаковые.
 
-Проверка:
+Проверил сетевые интерфейсы на докер-хосте: 
 
-Запускаем контейнер с использованием `host-драйвера` из образа `joffotron/docker-net-tools`
+```
+docker-machine ssh docker-host ifconfig
+``` 
+
+Сравнил интерфейсы в контейнере - они идентичны:
 
 ```bash
 docker run -ti --rm --network host joffotron/docker-net-tools -c ifconfig
@@ -889,48 +898,61 @@ vethf47f7f6 Link encap:Ethernet  HWaddr FE:0A:5E:A4:02:CF
           RX bytes:119475920 (113.9 MiB)  TX bytes:132302216 (126.1 MiB)
 ```
 
-Вывод команды `docker-machine ssh docker-host ifconfig` показывает аналогичные интерфейсы на docker-хосте.
+### Network namespaces
 
-
-### Изоляция сетей
-
-Network namespaces (простанство имен сетей) позволяет использовать изоляюцию сетей в контейнерах. 
-Запустим контейнеры в сетях `none` и `host` и проверим создание net-namespaces на docker-хосте:
+Network namespaces (простанство имен сетей) обеспечивает изоляюцию сетей в контейнерах.  
+Проверил создание network namespaces на docker-хосте:
 
 ```bash
-# Подключаемся к docker-хосту
-ssh -i ~/.ssh/id_rsa yc-user@84.252.129.111
-# создадим симлинк
+# Подключился к docker-хосту
+docker-machine ssh docker-host
+
+# создал симлинк
 sudo ln -s /var/run/docker/netns /var/run/netns
-# запустим контейнер в сети none
+
+# запустил контейнер в сети none
 docker run -ti --rm --network none joffotron/docker-net-tools -c ifconfig
-# Проверяем net-namespaces:
+
+# Проверил network namespaces:
 sudo ip netns
-# в сети none (для loopback-интерфейса) создается свой net-namespace
+# в сети "none" создается свой net-namespace (даже для loopback-интерфейса)
 Error: Peer netns reference is invalid.
 Error: Peer netns reference is invalid.
 cd4afab32317
 default
-# запустим контейнер в сети host
+
+# запустил контейнер в сети "host"
 docker run -ti --rm --network host joffotron/docker-net-tools -c ifconfig
+# Проверил network namespaces:
+sudo ip netns
 # в сети host net-namespace не создается (есть только default)
 default
 ```
 
-Выполним:
+Попробовал запустить несколько контейнеров с `nginx` в сети `host`:
 
 ```bash
-# Запустим контейнер c nginx
+# Запустил контейнер c nginx
 docker run --network host -d nginx  # 4 раза
-# проверим запуск
+
+# проверил запуск
 docker ps
+
 CONTAINER ID   IMAGE     COMMAND                  CREATED          STATUS          PORTS     NAMES
 6950cc487582   nginx     "/docker-entrypoint.…"   58 seconds ago   Up 57 seconds             distracted_bell
-# Вывод: запускается только один контейнер, остальные остановлены. 
-# Это связано с тем, что сеть запускаемых контейнеров, использующих host-драйвер - не изолирована, соответственно контейнеры не могут использовать одновременно сеть хоста для nginx (в общем namespace).   
+
+# Вывод: запущен только один контейнер, остальные были остановлены. 
+# Полагаю, что это связано с тем, что сеть в запускаемых контейнерах, использующих host-драйвер не изолирована. 
+# И несколько контейнеров c nginx не могут делить одну хостовую сеть (может работать 1 контейнер).   
 ```
 
 ### Bridge network driver
+
+- Контейнеры могут взаимодействовать между собой (если они в одной подсети)
+- Выходят в интернет через NAT (через интерфейс хоста).
+- По-умолчанию создается сеть `default-bridge`, но она менее функциональна (лучше использовать обычную `bridge`).
+
+Команды:
 
 ```bash
 # Создать сеть с brige-драйвером
@@ -958,16 +980,36 @@ docker network connect <network_name> <сontainer_name>
 docker network ls
 ```
 
-Исследуем brige-сеть
+- Запустил контейнеры и подключил их к подсетям:
 
 ```bash
-# подключимся к docker-хосту
-$ docker-machine ssh docker-host
-$ sudo apt-get update && sudo apt-get install bridge-utils
+docker kill $(docker ps -q)
 
-# проверим brige-интерфейсы
-$ sudo docker network ls
-$ sudo ifconfig | grep br
+# Создадим 2 docker-сети
+docker network create back_net --subnet=10.0.2.0/24
+docker network create front_net --subnet=10.0.1.0/24
+
+# Запустим контейнеры с алиасами в 
+docker run -d --network=front_net -p 9292:9292 --name ui  <your-dockerhub-login>/ui:1.0
+docker run -d --network=back_net --name comment  <your-dockerhub-login>/comment:1.0
+docker run -d --network=back_net --name post  <your-dockerhub-login>/post:1.0
+docker run -d --network=back_net --name mongo_db --network-alias=post_db --network-alias=comment_db mongo:latest
+
+# Подключим контейнеры post и comment также к сети front_net
+docker network connect front_net post
+docker network connect front_net comment
+```
+
+- Исследовал bridge-сеть:
+
+```bash
+# Подключился к docker-хосту
+docker-machine ssh docker-host
+sudo apt-get update && sudo apt-get install bridge-utils
+
+# Проверил bridge-интерфейсы
+sudo docker network ls
+sudo ifconfig | grep br
 br-251a47bf0c24: flags=4099<UP,BROADCAST,MULTICAST>  mtu 1500
         inet 172.18.0.1  netmask 255.255.0.0  broadcast 172.18.255.255
 br-3e91715a392f: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
@@ -979,13 +1021,15 @@ br-d59b8c806e7d: flags=4099<UP,BROADCAST,MULTICAST>  mtu 1500
         inet 172.17.0.1  netmask 255.255.0.0  broadcast 172.17.255.255
         inet 10.130.0.32  netmask 255.255.255.0  broadcast 10.130.0.255
 
-# проверим veth-интерфейсы - это те части виртуальных пар интерфейсов, которые лежат в сетевом пространстве хоста и также отображаются в ifconfig. Вторые их части лежат внутри контейнеров
-$ brctl show br-410cdf95a2db
+# Проверил veth-интерфейсы - это те части виртуальных пар интерфейсов, которые лежат в сетевом пространстве хоста и также отображаются в ifconfig. 
+# Вторые их части лежат внутри контейнеров.
+brctl show br-410cdf95a2db
+
 bridge name     bridge id               STP enabled     interfaces
 br-410cdf95a2db         8000.02423511218b       no
 
-# Посмотрим как контейнеры выходят во внешнюю сеть через NAT и 
-$ sudo iptables -nL -t nat 
+# Проверил использование NAT контейнерами в iptables:
+sudo iptables -nL -t nat 
 
 ...
 Chain POSTROUTING (policy ACCEPT)
@@ -998,14 +1042,138 @@ MASQUERADE  all  --  172.17.0.0/16        0.0.0.0/0
 MASQUERADE  tcp  --  172.19.0.3           172.19.0.3           tcp dpt:9292
 ...
 
-# Здесь же видим правило DNAT, отвечающее за перенаправление трафика на адреса конкретных # контейнеров
+# Здесь же видим правило DNAT, отвечающее за перенаправление трафика на адреса конкретных контейнеров
 DNAT       tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:9292 to:172.19.0.3:9292
 
 # Проверим, что docker-proxy слушает tcp-порт 9292
-$ ps ax | grep docker-proxy
+ps ax | grep docker-proxy
  1771 pts/1    R+     0:00 grep --color=auto docker-proxy
 30670 ?        Sl     0:00 /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 9292 -container-ip 172.19.0.3 -container-port 9292
 ```
 
 ### docker-compose
+
+- Установил последнюю версию `docker-compose`:
+
+```bash
+sudo curl -L "https://github.com/docker/compose/releases/download/1.28.5/docker-compose-$(uname -s)-$(uname -m)" -o /bin/docker-compose
+chmod +x /bin/docker-compose
+```
+
+- Описал в `docker-compose.yml` контейнеры c томами, сетями, алиасами (параметризирован с помощью переменных окружений):
+
+docker-compose.yml
+
+```yml
+version: '3.3'
+
+services:
+  
+  post_db:
+    env_file: .env
+    image: mongo:${MONGODB_VERSION}
+    volumes:
+      - post_db:/data/db
+    networks:
+      back_net:
+        aliases:
+          - post_db
+          - comment_db
+
+  ui:
+    env_file: .env
+    build: ./ui
+    image: ${USERNAME}/ui:${UI_VERSION}
+    ports:
+      - ${UI_HOST_PORT}:${UI_CONTAINER_PORT}/tcp
+    networks:
+      - front_net
+
+  post:
+    env_file: .env
+    build: ./post-py
+    image: ${USERNAME}/post:${POST_VERSION}
+    networks:
+      - front_net
+      - back_net
+
+  comment:
+    env_file: .env
+    build: ./comment
+    image: ${USERNAME}/comment:${COMMENT_VERSION}
+    networks:
+      - front_net
+      - back_net
+
+volumes:
+  post_db:
+
+networks:
+
+  front_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: ${FRONT_NET_SUBNET}
+  
+  back_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: ${BACK_NET_SUBNET}
+```
+
+В файле .env хранятся значения параметров (вызывается при запуске docker-compose):
+
+```
+# порт публикации приложения
+UI_HOST_PORT=9292
+UI_CONTAINER_PORT=9292
+
+# логин (часть имени репозитория образа)
+USERNAME=abichutsky
+
+# версии образов
+MONGODB_VERSION=3.2
+UI_VERSION=1.0
+POST_VERSION=1.0
+COMMENT_VERSION=1.0
+
+# подсети
+FRONT_NET_SUBNET=10.0.1.0/24
+BACK_NET_SUBNET=10.0.2.0/24
+```
+
+Запустить проект:
+
+```
+docker kill $(docker ps -q)
+docker-compose up -d
+```
+
+Проверка
+
+```
+docker-compose ps
+
+    Name                  Command             State           Ports         
+----------------------------------------------------------------------------
+src_comment_1   puma                          Up                            
+src_post_1      python3 post_app.py           Up                            
+src_post_db_1   docker-entrypoint.sh mongod   Up      27017/tcp             
+src_ui_1        puma                          Up      0.0.0.0:9292->9292/tcp
+```
+
+Альтернативный способ запуска проекта:   
+используем ключ `--env-file` с указанием пути к файлу .env:
+
+```bash
+# удалим из docker-compose.yml строчки "env_file: .env"
+docker-compose --env-file .env up -d
+```
+Подробнее: https://docs.docker.com/compose/environment-variables
+
+**Изменение базового имени проекта**
 
