@@ -9,3 +9,7 @@ jdauphant.nginx
 vault.key
 docker-1.log
 *.swp
+
+# docker-compose env file
+.env
+
