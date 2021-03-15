@@ -761,7 +761,7 @@ http://<Публичный IP>:9292 (актуальные ip-адреса для
      В моем случае: http://84.252.129.111:9292
 
      
-# Домашнее задание №12   
+# Домашнее задание №14  
 ## Docker: сети, docker-compose
 
 - Работа с сетями в Docker
@@ -1060,7 +1060,7 @@ sudo curl -L "https://github.com/docker/compose/releases/download/1.28.5/docker-
 chmod +x /bin/docker-compose
 ```
 
-- Описал в `docker-compose.yml` контейнеры c томами, сетями, алиасами (параметризирован с помощью переменных окружений):
+- Описал в `docker-compose.yml` сборку контейнеров с сетями, алиасами (параметризирован с помощью переменных окружений):
 
 docker-compose.yml
 
@@ -1146,14 +1146,14 @@ FRONT_NET_SUBNET=10.0.1.0/24
 BACK_NET_SUBNET=10.0.2.0/24
 ```
 
-Запустить проект:
+Запустить приложение:
 
 ```
-docker kill $(docker ps -q)
+docker kill $(docker ps -q) # остановим старые контейнеры docker
 docker-compose up -d
 ```
 
-Проверка
+Проверка:
 
 ```
 docker-compose ps
@@ -1166,7 +1166,8 @@ src_post_db_1   docker-entrypoint.sh mongod   Up      27017/tcp
 src_ui_1        puma                          Up      0.0.0.0:9292->9292/tcp
 ```
 
-Альтернативный способ запуска проекта:   
+
+Альтернативный способ запуска:   
 используем ключ `--env-file` с указанием пути к файлу .env:
 
 ```bash
@@ -1177,3 +1178,19 @@ docker-compose --env-file .env up -d
 
 **Изменение базового имени проекта**
 
+По-умолчанию имя проекта (префикс) создается из имени каталога, в котором находится проект
+(в нашем случае `src`). Его можно задать одним из способов:
+
+1) Добавить в файл .env переменную:
+
+```
+COMPOSE_PROJECT_NAME=reddit
+```
+
+2) Использовать при запуске ключ ` -p, --project-name NAME`, пример:
+
+```
+docker-compose --project-name reddit up -d
+```
+
+Подробнее: https://docs.docker.com/compose/reference/envvars/
