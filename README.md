@@ -1060,7 +1060,7 @@ sudo curl -L "https://github.com/docker/compose/releases/download/1.28.5/docker-
 chmod +x /bin/docker-compose
 ```
 
-- Описал в `docker-compose.yml` сборку контейнеров с сетями, алиасами (параметризирован с помощью переменных окружений):
+- Описал в `docker-compose.yml` сборку контейнеров с сетями, алиасами (параметризировал с помощью переменных окружений):
 
 docker-compose.yml
 
@@ -1125,7 +1125,7 @@ networks:
         - subnet: ${BACK_NET_SUBNET}
 ```
 
-В файле .env хранятся значения параметров (вызывается при запуске docker-compose):
+В файле .env хранятся значения переменных (вызывается при запуске docker-compose):
 
 ```
 # порт публикации приложения
@@ -1166,7 +1166,6 @@ src_post_db_1   docker-entrypoint.sh mongod   Up      27017/tcp
 src_ui_1        puma                          Up      0.0.0.0:9292->9292/tcp
 ```
 
-
 Альтернативный способ запуска:   
 используем ключ `--env-file` с указанием пути к файлу .env:
 
@@ -1175,6 +1174,8 @@ src_ui_1        puma                          Up      0.0.0.0:9292->9292/tcp
 docker-compose --env-file .env up -d
 ```
 Подробнее: https://docs.docker.com/compose/environment-variables
+
+Приложение доступно по адресу: http://84.252.129.111:9292
 
 **Изменение базового имени проекта**
 
@@ -1194,3 +1195,83 @@ docker-compose --project-name reddit up -d
 ```
 
 Подробнее: https://docs.docker.com/compose/reference/envvars/
+
+
+### Задание со *
+
+Создайте docker-compose.override.yml для reddit проекта, который позволит:  
+• Изменять код каждого из приложений, не выполняя сборку образа;  
+• Запускать puma для руби приложений в дебаг режиме с двумя воркерами (флаги --debug и -w 2).  
+
+**Решение**
+
+Docker Compose по умолчанию очередно читает два файла: `docker-compose.yml` и `docker-compose.override.yml`.  
+В последнем можно хранить переопределения для существующих сервисов или определять новые.
+
+docker-compose.override.yml
+
+```
+version: '3.3'
+services:
+
+  ui:
+    env_file: .env
+    volumes:
+      - ./ui:/app
+    command: ["puma", "--debug", "-w", "2"]
+
+  post:
+    env_file: .env
+    volumes:
+      - ./post-py:/app
+      
+  comment:
+    env_file: .env
+    volumes:
+      - ./comment:/app
+    command: ["puma", "--debug", "-w", "2"]
+```
+
+Заданы тома для наших сервисов:  
+- <путь к папке приложения на локальном хосте>:<путь к папке приложения в контейнере>
+
+Т.к. тома ссылаются на локальный путь, проверим приложение локально. Иначе придется копировать файлы проекта на удаленный docker-хост.
+
+Проверяем, что воркеры запущены:
+
+```
+$ eval $(docker-machine env --unset) # переключаемся на локальный docker
+$ docker-machine ls
+$ docker-compose down # остановить и удалить контейнеры
+$ docker-compose up -d # запустить контейнеры
+$ docker-compose config # проверить конфиг
+$ docker-compose ps
+   Name                  Command             State           Ports         
+----------------------------------------------------------------------------
+src_comment_1   puma --debug -w 2             Up                            
+src_post_1      python3 post_app.py           Up                            
+src_post_db_1   docker-entrypoint.sh mongod   Up      27017/tcp             
+src_ui_1        puma --debug -w 2             Up      0.0.0.0:9292->9292/tcp
+```
+
+Проверяем, что можем изменять файлы проекта, не производя билд образа.  
+На локальном хосте:
+
+```
+$ cd src/ui # переходим в каталог приложения ui
+$ touch newfile.txt # создадим новый файл
+$ ls
+config.ru        Dockerfile    Gemfile       helpers.rb     newfile.txt  VERSION
+docker_build.sh  Dockerfile.1  Gemfile.lock  middleware.rb  ui_app.rb    views
+```
+
+Проверяем, что файл отображается в контейнере:
+
+```
+$ sudo docker-compose exec ui ls ../app
+Dockerfile    Gemfile.lock  docker_build.sh  newfile.txt
+Dockerfile.1  VERSION       helpers.rb       ui_app.rb
+Gemfile       config.ru     middleware.rb    views
+```
+
+Приложение доступно по адресу: http://localhost:9292
