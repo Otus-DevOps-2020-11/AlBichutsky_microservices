@@ -1133,7 +1133,7 @@ UI_HOST_PORT=9292
 UI_CONTAINER_PORT=9292
 
 # логин (часть имени репозитория образа)
-USERNAME=abichutsky
+USERNAME=alex
 
 # версии образов
 MONGODB_VERSION=3.2
@@ -1201,7 +1201,7 @@ docker-compose --project-name reddit up -d
 
 Создайте docker-compose.override.yml для reddit проекта, который позволит:  
 • Изменять код каждого из приложений, не выполняя сборку образа;  
-• Запускать puma для руби приложений в дебаг режиме с двумя воркерами (флаги --debug и -w 2).  
+• Запускать puma для ruby приложений в дебаг режиме с двумя воркерами (флаги --debug и -w 2).  
 
 **Решение**
 
@@ -1240,7 +1240,7 @@ services:
 
 Проверяем, что воркеры запущены:
 
-```
+```bash
 $ eval $(docker-machine env --unset) # переключаемся на локальный docker
 $ docker-machine ls
 $ docker-compose down # остановить и удалить контейнеры
@@ -1258,7 +1258,7 @@ src_ui_1        puma --debug -w 2             Up      0.0.0.0:9292->9292/tcp
 Проверяем, что можем изменять файлы проекта, не производя билд образа.  
 На локальном хосте:
 
-```
+```bash
 $ cd src/ui # переходим в каталог приложения ui
 $ touch newfile.txt # создадим новый файл
 $ ls
