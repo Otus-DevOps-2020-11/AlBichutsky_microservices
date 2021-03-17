@@ -175,7 +175,7 @@ docker-machine <имя машины> status  # проверить состоян
 docker-machine ssh <имя машины> # подключиться по ssh
 docker-machine <имя машины> rm  # удалить docker-хост
 
-eval $(docker-machineenv --unset) # выйти из окружения docker-machine (к локальному docker)
+eval $(docker-machineenv --unset) # переключиться на локальный docker
 eval $(docker-machine env <имя машины>)  # переключиться к окружению docker-хоста <имя машины>
 ```
 
@@ -223,7 +223,7 @@ docker push abichutsky/otus-reddit:1.0
 
 ```bash
 # В отдельной консоли
-eval $(docker-machine env --unset) # выходим из окружения docker-machine
+eval $(docker-machine env --unset) # переключиться на локальный docker
 docker ps -a  # убедимся, что мы в локальном окружении
 docker run --name reddit -d -p 9292:9292 abichutsky/otus-reddit:1.0 # запускаем контейнер
 ```
@@ -1250,7 +1250,7 @@ services:
 Проверяем, что воркеры запущены:
 
 ```bash
-eval $(docker-machine env --unset) # переключаемся на локальный docker
+eval $(docker-machine env --unset) # переключиться на локальный docker
 docker-machine ls
 docker-compose down # остановить и удалить контейнеры
 docker-compose up -d # запустить контейнеры
