@@ -2,6 +2,13 @@
 AlBichutsky microservices repository
 
 # Домашнее задание №12
+## Технология контейнеризации. Введение в Docker.
+
+- Создание docker-host  
+- Создание своего образа
+- Работа с Docker Hub
+
+### Описание
 
 - Установил последние версии `docker`, `docker-compose`, `docker-machine`:
 
@@ -232,7 +239,7 @@ docker run --name reddit -d -p 9292:9292 abichutsky/otus-reddit:1.0 # запус
 - Несколько плейбуков Ansible с использованием динамического инвентори для установки докера и запуска там образа приложения;
 - Шаблон пакера, который делает образ с уже установленным Docker.
 
-#### Описание
+**Решение**
 
 - Создал шаблон Packer для запекания образа в облаке:
 
@@ -467,6 +474,7 @@ http://<Публичный IP>:9292 (актуальные ip-адреса для
 
 
 # Домашнее задание №13
+## Docker-образы. Микросервисы.
 
 * описываем и собираем Docker-образ для сервисного приложения;
 * оптимизируем Docker-образы;
@@ -942,8 +950,8 @@ CONTAINER ID   IMAGE     COMMAND                  CREATED          STATUS       
 6950cc487582   nginx     "/docker-entrypoint.…"   58 seconds ago   Up 57 seconds             distracted_bell
 
 # Вывод: запущен только один контейнер, остальные были остановлены. 
-# Полагаю, что это связано с тем, что сеть в запускаемых контейнерах, использующих host-драйвер не изолирована. 
-# И несколько контейнеров c nginx не могут делить одну хостовую сеть (может работать 1 контейнер).   
+# Это связано с тем, что сеть в запускаемых контейнерах, использующих host-драйвер не изолирована. 
+# Несколько контейнеров c nginx не могут делить одну хостовую сеть (может работать 1 контейнер).   
 ```
 
 ### Bridge network driver
@@ -1205,7 +1213,7 @@ docker-compose --project-name reddit up -d
 
 **Решение**
 
-Docker Compose по умолчанию очередно читает два файла: `docker-compose.yml` и `docker-compose.override.yml`.  
+Docker Compose по умолчанию по-очереди читает два файла: `docker-compose.yml` и `docker-compose.override.yml`.  
 В последнем можно хранить переопределения для существующих сервисов или определять новые.
 
 docker-compose.override.yml
@@ -1232,7 +1240,7 @@ services:
     command: ["puma", "--debug", "-w", "2"]
 ```
 
-Заданы тома для наших сервисов:  
+Задан `bind mount`:  
 - <путь к каталогу приложения на локальном хосте (папка с исходниками проекта)>:<путь к каталогу приложения в контейнере>
 
 Поскольку монтируются папки локального хоста, проверим приложение локально.   
@@ -1241,12 +1249,12 @@ services:
 Проверяем, что воркеры запущены:
 
 ```bash
-$ eval $(docker-machine env --unset) # переключаемся на локальный docker
-$ docker-machine ls
-$ docker-compose down # остановить и удалить контейнеры
-$ docker-compose up -d # запустить контейнеры
-$ docker-compose config # проверить конфиг
-$ docker-compose ps
+eval $(docker-machine env --unset) # переключаемся на локальный docker
+docker-machine ls
+docker-compose down # остановить и удалить контейнеры
+docker-compose up -d # запустить контейнеры
+docker-compose config # проверить конфиг
+docker-compose ps
    Name                  Command             State           Ports         
 ----------------------------------------------------------------------------
 src_comment_1   puma --debug -w 2             Up                            
@@ -1259,9 +1267,9 @@ src_ui_1        puma --debug -w 2             Up      0.0.0.0:9292->9292/tcp
 На локальном хосте:
 
 ```bash
-$ cd src/ui # переходим в каталог приложения ui
-$ touch newfile.txt # создадим новый файл
-$ ls
+cd src/ui # переходим в каталог приложения ui
+touch newfile.txt # создадим новый файл
+ls
 config.ru        Dockerfile    Gemfile       helpers.rb     newfile.txt  VERSION
 docker_build.sh  Dockerfile.1  Gemfile.lock  middleware.rb  ui_app.rb    views
 ```
@@ -1269,7 +1277,7 @@ docker_build.sh  Dockerfile.1  Gemfile.lock  middleware.rb  ui_app.rb    views
 Проверяем, что файл отображается в папке приложения в контейнере:
 
 ```
-$ sudo docker-compose exec ui ls ../app
+docker-compose exec ui ls ../app
 Dockerfile    Gemfile.lock  docker_build.sh  newfile.txt
 Dockerfile.1  VERSION       helpers.rb       ui_app.rb
 Gemfile       config.ru     middleware.rb    views
