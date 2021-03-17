@@ -145,8 +145,9 @@ yc compute instance create \
   --ssh-key ~/.ssh/id_rsa.pub
 ```
 
-Затем с помощью `docker-machine` проинициализировал на нем docker, указав публичный IP инстанса. 
-`Docker-machine` позволяет создать хост c docker-engine и управлять им на локальной или облачной ВМ. В нашем случае мы инициализируем окружение docker на уже созданном инстансе Yandex Cloud.
+Затем с помощью `docker-machine` проинициализировал на нем docker, указав публичный IP инстанса.  
+`docker-machine` - встроенный в докер инструмент для создания хостов и установки на них
+docker engine.
 
 ```bash
 docker-machine create \
