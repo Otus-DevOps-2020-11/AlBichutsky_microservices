@@ -1285,3 +1285,62 @@ Gemfile       config.ru     middleware.rb    views
 ```
 
 Приложение доступно по адресу: http://localhost:9292
+
+# Домашнее задание №14
+## Устройство GitLab CI. Построение процесса непрерывной поставки.
+
+- Создал ВМ для Gitlab.
+
+- Установил на нее docker-engine
+
+docker-machine create \
+  --driver generic \
+  --generic-ip-address=84.252.129.137 \
+  --generic-ssh-user yc-user \
+  --generic-ssh-key ~/.ssh/id_rsa \
+  gitlab-ci-vm
+
+docker-machine env gitlab-ci-vm
+eval $(docker-machine env gitlab-ci-vm)
+
+- Создал папки:
+
+```
+mkdir -p /srv/gitlab/config /srv/gitlab/data /srv/gitlab/logs
+cd /srv/gitlab
+touch docker-compose.yml
+```
+
+запустим;
+
+```
+
+docker-compose up -d
+
+```
+
+Пароль: otus007!
+
+
+git remote add gitlab http://84.252.129.137/homework/example.git
+git push gitlab gitlab-ci-1
+
+HdwZqxXcFHcobLsnVSQE
+
+docker run -d --name gitlab-runner --restart always -v /srv/gitlabrunner/config:/etc/gitlab-runner -v /var/run/docker.sock:/var/run/docker.sock gitlab/gitlab-runner:latest
+
+
+docker exec -it gitlab-runner gitlab-runner register \
+ --url http://84.252.129.137/ \
+ --non-interactive \
+ --locked=false \
+ --name DockerRunner \
+ --executor docker \
+ --docker-image alpine:latest \
+ --registration-token HdwZqxXcFHcobLsnVSQE \
+ --tag-list "linux,xenial,ubuntu,docker" \
+ --run-untagged
+
+ docker exec -it gitlab-runner gitlab-runner register --help 
+
+ стр 33
