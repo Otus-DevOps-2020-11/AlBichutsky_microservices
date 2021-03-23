@@ -6,7 +6,6 @@ stages:
   - review
   - stage
   - production
-#  - deploy
 
 variables:
   DATABASE_URL: 'mongodb://mongo/user_posts'
