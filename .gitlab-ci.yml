@@ -50,7 +50,7 @@ branch review:
   except:
     - master
 
-stage:
+staging:
   stage: stage
   when: manual
   only:
