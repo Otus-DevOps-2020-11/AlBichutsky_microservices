@@ -1323,7 +1323,7 @@ docker-compose up -d
 
 docker-compose.yml
 
-```
+```yml
 web:
   image: 'gitlab/gitlab-ce:latest'
   restart: always
@@ -1341,7 +1341,7 @@ web:
     - '/srv/gitlab/data:/var/opt/gitlab'
 ```
 
-- Для использования репозитория Gitlab (push) на локальном хосте добавил еще один remote:
+- Для выполнения push с локального хоста в gitlab добавил еще один remote:
 
 ```bash
 git remote add gitlab http://84.252.129.137/homework/example.git
@@ -1501,16 +1501,23 @@ git push gitlab gitlab-ci-1
 
 ### Проверка запуска пайплайна
 
-`Gitlab CI` доступен по ссылке http://84.252.129.137
+Инстанс с `Gitlab CI` доступен по ссылке http://84.252.129.137
 
 - Изменения без указания тэга запустят пайплайн без задач `staging` и `production`.
-- Изменение, помеченное тэгом в git, запустит полный пайплайн.
-- `staging` и `production` запускаются вручную.
+- Изменение, помеченное тэгом в git, запустит полный пайплайн (`staging` и `production` запускаются вручную).
+- на каждую ветку в git, отличную от master, Gitlab CI будет определять новое окружение.
 
-На локальном хосте закоммитим файлы, укажем тэг в git и запушим в gitlab:
+
+На локальном хосте закоммитим файлы, укажем тэг (версию) и запушим в gitlab:
 
 ```
+git add ...
 git commit -am 'test ver 2.4.22'
-git tag 2.4.21
+git tag 2.4.22
 git push gitlab gitlab-ci-1 --tags
 ```
+
+Проверка:
+
+[Запуск пайплайна](gitlab-ci/gitlab1.png)  
+[Создание окружений](gitlab-ci/gitlab1.png)
