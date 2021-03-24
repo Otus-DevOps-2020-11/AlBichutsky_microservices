@@ -19,11 +19,6 @@ build_job:
   script:
     - echo 'Building'
 
-#test_unit_job:
-#  stage: test
-#  script:
-#    - echo 'Testing 1'
-
 test_unit_job:
   stage: test
   services:
@@ -35,11 +30,6 @@ test_integration_job:
   stage: test
   script:
     - echo 'Testing 2'
-
-#deploy_job:
-#  stage: deploy
-#  script:
-#    - echo 'Deploy'
 
 deploy_dev_job:
   stage: review
