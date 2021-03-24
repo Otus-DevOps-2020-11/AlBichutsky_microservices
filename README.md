@@ -1491,7 +1491,7 @@ production:
     url: http://example.com
 ```
 
-Запушил файлы проекта и файл пайплайна `.gitlab-ci.yml` в репозиторий gitlab:
+Запушил файлы проекта и пайплайна `.gitlab-ci.yml` в репозиторий gitlab:
 
 ```bash
 git add ...
@@ -1520,4 +1520,4 @@ git push gitlab gitlab-ci-1 --tags
 Проверка:
 
 [Запуск пайплайна](gitlab-ci/gitlab1.png)  
-[Создание окружений](gitlab-ci/gitlab1.png)
+[Создание окружений](gitlab-ci/gitlab2.png)
