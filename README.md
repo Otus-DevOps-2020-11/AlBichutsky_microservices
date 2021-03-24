@@ -1350,13 +1350,13 @@ git push gitlab gitlab-ci-1
 
 ### Создание раннеров
 
-- Добавил раннер:
+- Добавил раннер на инстансе:
 
 ```
 docker run -d --name gitlab-runner --restart always -v /srv/gitlabrunner/config:/etc/gitlab-runner -v /var/run/docker.sock:/var/run/docker.sock gitlab/gitlab-runner:latest
 ```
 
-- Зарегистрировал его:
+- Затем зарегистрировал его:
 
 ``` bash
 docker exec -it gitlab-runner gitlab-runner register \
