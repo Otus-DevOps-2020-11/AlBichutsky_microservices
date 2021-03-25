@@ -1285,3 +1285,239 @@ Gemfile       config.ru     middleware.rb    views
 ```
 
 Приложение доступно по адресу: http://localhost:9292
+
+# Домашнее задание №15
+## Устройство GitLab CI. Построение процесса непрерывной поставки.
+
+### Установка GitLab CI
+
+- Создал инстанс для `gitlab` через Web-консоль Yandex Cloud.
+
+- Проинициализировал на нем docker через `docker-machine`:
+
+```bash
+docker-machine create \
+  --driver generic \
+  --generic-ip-address=84.252.129.137 \
+  --generic-ssh-user yc-user \
+  --generic-ssh-key ~/.ssh/id_rsa \
+  gitlab-ci-vm
+```
+
+- На инстансе создал необходимые каталоги:
+
+```bash
+docker-machine env gitlab-ci-vm
+eval $(docker-machine env gitlab-ci-vm)
+docker-machine ssh gitlab-ci-vm # подключаемся по ssh со своего хоста к инстансу
+mkdir -p /srv/gitlab/config /srv/gitlab/data /srv/gitlab/logs
+```
+
+- Запустил `gitlab` через `docker-compose`:
+
+```bash
+cd /srv/gitlab
+touch docker-compose.yml
+docker-compose up -d
+```
+
+docker-compose.yml
+
+```yml
+web:
+  image: 'gitlab/gitlab-ce:latest'
+  restart: always
+  hostname: 'gitlab.example.com'
+  environment:
+    GITLAB_OMNIBUS_CONFIG: |
+      external_url 'http://<YOUR-VM-IP>'
+  ports:
+    - '80:80'
+    - '443:443'
+    - '2222:22'
+  volumes:
+    - '/srv/gitlab/config:/etc/gitlab'
+    - '/srv/gitlab/logs:/var/log/gitlab'
+    - '/srv/gitlab/data:/var/opt/gitlab'
+```
+
+- Для выполнения push с локального хоста в gitlab добавил remote:
+
+```bash
+git remote add gitlab http://84.252.129.137/homework/example.git
+git push gitlab gitlab-ci-1
+```
+
+### Создание раннеров
+
+- Добавил раннер на инстансе:
+
+```
+docker run -d --name gitlab-runner --restart always -v /srv/gitlabrunner/config:/etc/gitlab-runner -v /var/run/docker.sock:/var/run/docker.sock gitlab/gitlab-runner:latest
+```
+
+- Затем зарегистрировал его:
+
+``` bash
+docker exec -it gitlab-runner gitlab-runner register \
+ --url http://84.252.129.137/ \
+ --non-interactive \
+ --locked=false \
+ --name DockerRunner \
+ --executor docker \
+ --docker-image alpine:latest \
+ --registration-token HdwZqxXcFHcobLsnVSQE \
+ --tag-list "linux,xenial,ubuntu,docker" \
+ --run-untagged
+```
+
+### Тесты в пайплайне
+
+- Добавил исходники приложения `reddit` в локальный репозиторий:
+
+```bash
+cd reddit
+git clone https://github.com/express42/reddit.git && rm -rf ./reddit/.git
+```
+
+- Добавил файл `simpletest.rb` с тестами в каталог `reddit`: 
+
+```ruby
+require_relative './app'
+require 'test/unit'
+require 'rack/test'
+
+set :environment, :test
+
+class MyAppTest < Test::Unit::TestCase
+  include Rack::Test::Methods
+
+  def app
+    Sinatra::Application
+  end
+
+  def test_get_request
+    get '/'
+    assert last_response.ok?
+  end
+end
+```
+
+- Добавил библиотеку `rack-test` для тестирования в reddit/Gemfile:
+
+```ruby
+...
+gem 'rack-test'
+...
+```
+
+- Файл пайплайна `.gitlab-ci.yml` (необходимо запушить):
+  - этапы в `stage` выполняются последовательно; 
+  - задания `staging` и `production` запускаются вручную (опция `when`);
+
+```yaml
+image: ruby:2.4.2
+
+stages:
+  - build
+  - test
+  - review
+  - stage
+  - production
+
+variables:
+  DATABASE_URL: 'mongodb://mongo/user_posts'
+   
+before_script:
+  - cd reddit
+  - bundle install
+
+build_job:
+  stage: build
+  script:
+    - echo 'Building'
+
+test_unit_job:
+  stage: test
+  services:
+    - mongo:latest
+  script:
+    - ruby simpletest.rb
+
+test_integration_job:
+  stage: test
+  script:
+    - echo 'Testing 2'
+
+deploy_dev_job:
+  stage: review
+  script:
+    - echo 'Deploy'
+  environment:
+    name: dev
+    url: http://dev.example.com
+
+branch review:
+  stage: review
+  script: echo "Deploy to $CI_ENVIRONMENT_SLUG"
+  environment:
+    name: branch/$CI_COMMIT_REF_NAME
+    url: http://$CI_ENVIRONMENT_SLUG.example.com
+  only:
+    - branches
+  except:
+    - master
+
+staging:
+  stage: stage
+  when: manual
+  only:
+    - /^\d+\.\d+\.\d+/
+  script:
+    - echo 'Deploy'
+  environment:
+    name: stage
+    url: http://beta.example.com
+
+production:
+  stage: production
+  when: manual
+  only:
+    - /^\d+\.\d+\.\d+/
+  script:
+    - echo 'Deploy'
+  environment:
+    name: production
+    url: http://example.com
+```
+
+Запушил файлы проекта и пайплайна `.gitlab-ci.yml` в репозиторий gitlab:
+
+```bash
+git add ...
+git commit -m ...
+git push gitlab gitlab-ci-1
+```
+
+### Проверка запуска пайплайна
+
+Инстанс с `Gitlab CI` доступен по ссылке http://84.252.129.137
+
+- Изменения без указания тэга запустят пайплайн без задач `staging` и `production`.
+- Изменение, помеченное тэгом в git, запустит полный пайплайн (`staging` и `production` запускаются вручную).
+- на каждую ветку в git, отличную от master, Gitlab CI будет определять новое окружение.
+
+
+На локальном хосте закоммитим файлы, укажем тэг (версию) и запушим в gitlab:
+
+```
+git add ...
+git commit -am 'test ver 2.4.22'
+git tag 2.4.22
+git push gitlab gitlab-ci-1 --tags
+```
+
+Проверка:
+
+[Запуск пайплайна](gitlab-ci/gitlab1.png)  
+[Создание окружений](gitlab-ci/gitlab2.png)
