@@ -1601,7 +1601,7 @@ FROM prom/prometheus:v2.1.0
 ADD prometheus.yml /etc/prometheus/
 ```
 
-конфиг `prometheus.yml` - настриваем сбор метрик с: 
+конфиг `prometheus.yml` - настраиваем сбор метрик с: 
   - prometheus, ui, comment
   - node-exporter - транислирует метрики с самого docker-хоста (инстанса) в качестве агента
 
@@ -1631,6 +1631,8 @@ ADD prometheus.yml /etc/prometheus/
           - targets: 
             - 'node-exporter:9100'
 ```
+
+### Запуск микросервисов
 
 - Описал запуск микросервисов в docker-compose.yml:
 
