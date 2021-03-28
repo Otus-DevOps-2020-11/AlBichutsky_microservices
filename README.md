@@ -1569,9 +1569,9 @@ docker run --rm -p 9090:9090 -d --name prometheus  prom/prometheus
 - Переупорядчил структуру директорий:
   - Создал каталог `./docker` и перенес в него каталог
 `docker-monolith` и файлы `docker-compose.*`, `.env` (переименовал `.env.example`).  
-  В нем будем запускать сервисы через `docker-compose`.
+  В нем будем запускать микросервисы в `docker-compose`.
   - создал каталог `./monitoring/prometheus` c файлами: `Dockerfile`, `prometheus.yml`.  
-    В нем будем билдить образ `Prometheus`.
+    В нем будем собирать образ `Prometheus`.
 
 ### Сборка образов
 
@@ -1603,7 +1603,7 @@ ADD prometheus.yml /etc/prometheus/
 
 конфиг `prometheus.yml` - настриваем сбор метрик с: 
   - prometheus, ui, comment
-  - node-exporter - транислирует метрики с самого docker-хоста в качестве агента
+  - node-exporter - транислирует метрики с самого docker-хоста (инстанса) в качестве агента
 
 ```yml
 ---
