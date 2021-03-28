@@ -1601,9 +1601,9 @@ FROM prom/prometheus:v2.1.0
 ADD prometheus.yml /etc/prometheus/
 ```
 
-конфиг `prometheus.yml` - указываем сбор метрик с: 
+конфиг `prometheus.yml` - настриваем сбор метрик с: 
   - prometheus, ui, comment
-  - самого docker-хоста через `node-exporter`
+  - node-exporter - транислирует метрики с самого docker-хоста в качестве агента
 
 ```yml
 ---
@@ -1765,4 +1765,4 @@ docker push $USER_NAME/prometheus
 [Targets, за которыми следит Prometheus](monitoring/prometheus/prometh-targets.png)  
 [health check основного сервиса ui](monitoring/prometheus/prometh_ui_health.png)  
 [health check зависимого сервиса comment](monitoring/prometheus/prometh_ui_health_comments_avail.png)   
-[Информация об использ. CPU docker-хоста (сбор через node exporter)](monitoring/prometheus/prometh_node_load.png)
+[Информация об использ. CPU docker-хоста (сбор идет через node exporter)](monitoring/prometheus/prometh_node_load.png)
