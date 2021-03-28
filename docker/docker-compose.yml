@@ -2,7 +2,6 @@ version: '3.3'
 services:
 
   prometheus:
-    env_file: .env
     image: ${USER_NAME}/prometheus
     ports:
       - 9090:9090
