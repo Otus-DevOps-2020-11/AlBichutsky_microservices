@@ -1521,3 +1521,250 @@ git push gitlab gitlab-ci-1 --tags
 
 [Запуск пайплайна](gitlab-ci/gitlab1.png)  
 [Создание окружений](gitlab-ci/gitlab2.png)
+
+
+# Домашнее задание №16
+## Введение в мониторинг. Системы мониторинга.
+
+- Prometheus: запуск, конфигурация, Web UI
+- Мониторинг состояния микросервисов
+- Сбор метрик хоста с использованием экспортера
+
+### Подготовка
+
+- Создал инcтсанс в Yandex Cloud, проинициализировал на нем docker: 
+
+```bash
+yc compute instance create \
+  --name docker-host \
+  --zone ru-central1-a \
+  --network-interface subnet-name=default-ru-central1-a,nat-ip-version=ipv4 \
+  --create-boot-disk image-folder-id=standard-images,image-family=ubuntu-1804-lts,size=15 \
+  --ssh-key ~/.ssh/id_rsa.pub
+	
+docker-machine create \
+  --driver generic \
+  --generic-ip-address=178.154.201.80 \
+  --generic-ssh-user yc-user \
+  --generic-ssh-key ~/.ssh/id_rsa \
+  docker-host
+
+# перейти в окружение docker хоста  
+eval $(docker-machine env docker-host)
+```
+
+- Дополнительно установил `docker-compose` на docker хосте:
+
+```
+docker-machine ssh docker-host
+sudo apt install docker-compose
+```
+
+- Запустил `Prometheus` в контейнере для проверки:
+
+```bash
+docker run --rm -p 9090:9090 -d --name prometheus  prom/prometheus
+```
+
+- Переупорядчил структуру директорий:
+  - Создал каталог `./docker` и перенес в него каталог
+`docker-monolith` и файлы `docker-compose.*`, `.env` (переименовал `.env.example`).  
+  В нем будем запускать микросервисы в `docker-compose`.
+  - создал каталог `./monitoring/prometheus` c файлами: `Dockerfile`, `prometheus.yml`.  
+    В нем будем собирать образ `Prometheus`.
+
+### Сборка образов
+
+- Собрал образы микросервисов с healthckeck-ми:
+
+Сборка сервисов `reddit` с помощью скриптов:
+
+```bash
+export USER_NAME=abichutsky # добавляем префикс для образа
+
+/src/ui      $ bash docker_build.sh
+/src/post-py $ bash docker_build.sh
+/src/comment $ bash docker_build.sh
+```
+
+Сборка `Prometheus` из Dockerfile:
+
+```bash
+cd ./monitoring/prometheus
+docker build -t $USER_NAME/prometheus .
+```
+
+Dockerfile
+
+```
+FROM prom/prometheus:v2.1.0
+ADD prometheus.yml /etc/prometheus/
+```
+
+конфиг `prometheus.yml` - настраиваем сбор метрик с: 
+  - prometheus, ui, comment
+  - node-exporter - транислирует метрики с самого docker-хоста (инстанса) в качестве агента
+
+```yml
+---
+    global:
+      scrape_interval: '5s'
+    
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+          - targets:
+            - 'localhost:9090'
+    
+      - job_name: 'ui'
+        static_configs:
+          - targets:
+            - 'ui:9292'
+    
+      - job_name: 'comment'
+        static_configs:
+          - targets:
+            - 'comment:9292'
+      
+      - job_name: 'node'
+        static_configs: 
+          - targets: 
+            - 'node-exporter:9100'
+```
+
+### Запуск микросервисов
+
+- Описал запуск микросервисов в docker-compose.yml:
+
+```yml
+version: '3.3'
+services:
+
+  prometheus:
+    image: ${USER_NAME}/prometheus
+    ports:
+      - 9090:9090
+    volumes:
+      - prometheus_data:/prometheus
+    command:
+    # Передаем доп параметры вкомандной строке
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention=1d' # Задаем время хранения метрик в 1 день
+    networks:
+      - front_net
+      - back_net    
+  
+  node-exporter:
+    image: prom/node-exporter:v0.15.2
+    user: root
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points="^/(sys|proc|dev|host|etc)($$|/)"'  
+    networks:
+      - front_net
+      - back_net  
+
+  post_db:
+    env_file: .env
+    image: mongo:${MONGODB_VERSION}
+    volumes:
+      - post_db:/data/db
+    networks:
+      back_net:
+        aliases:
+          - post_db
+          - comment_db
+
+  ui:
+    env_file: .env
+#    build: ./ui
+#    image: ${USER_NAME}/ui:${UI_VERSION}
+    image: ${USER_NAME}/ui
+    ports:
+      - ${UI_HOST_PORT}:${UI_CONTAINER_PORT}/tcp
+    networks:
+      - front_net
+
+  post:
+    env_file: .env
+#    build: ./post-py
+#    image: ${USER_NAME}/post:${POST_VERSION}
+    image: ${USER_NAME}/post
+    networks:
+      - front_net
+      - back_net
+      
+  comment:
+    env_file: .env
+#    build: ./comment
+#    image: ${USER_NAME}/comment:${COMMENT_VERSION}
+    image: ${USER_NAME}/comment
+    networks:
+      - front_net
+      - back_net
+
+volumes:
+
+  post_db: 
+  prometheus_data:
+
+networks:
+
+  front_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: ${FRONT_NET_SUBNET}
+  
+  back_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: ${BACK_NET_SUBNET}
+```
+
+- Запустил микросервисы (поднимаются сервисы reddit + prometheus + node exporter):
+
+```bash
+# игнорируем docker-compose.override.yml при запуске
+docker-compose -f docker-compose.yml up -d
+docker-compose ps
+
+         Name                       Command               State           Ports         
+----------------------------------------------------------------------------------------
+docker_comment_1         puma                             Up                            
+docker_node-exporter_1   /bin/node_exporter --path. ...   Up      9100/tcp              
+docker_post_1            python3 post_app.py              Up                            
+docker_post_db_1         docker-entrypoint.sh mongod      Up      27017/tcp             
+docker_prometheus_1      /bin/prometheus --config.f ...   Up      0.0.0.0:9090->9090/tcp
+docker_ui_1              puma   
+```
+
+- Запушил образы в свой репозиторий docker-hub: 
+
+```
+docker login
+docker push $USER_NAME/ui
+docker push $USER_NAME/comment
+docker push $USER_NAME/post 
+docker push $USER_NAME/prometheus
+```
+
+### Проверка
+
+1) Образы загружены в docker-hub: https://hub.docker.com/u/abichutsky
+2) Prometheus доступен по ссылке: http://178.154.201.80:9090
+3) Проверка мониторинга:
+
+[Targets, за которыми следит Prometheus](monitoring/prometheus/prometh-targets.png)  
+[health check основного сервиса ui](monitoring/prometheus/prometh_ui_health.png)  
+[health check зависимого сервиса comment](monitoring/prometheus/prometh_ui_health_comments_avail.png)   
+[Информация об использ. CPU docker-хоста (сбор идет через node exporter)](monitoring/prometheus/prometh_node_load.png)
