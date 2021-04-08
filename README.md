@@ -1940,7 +1940,7 @@ networks:
                 - subnet: ${BACK_NET_SUBNET}
 ```
 
-Приложения мониторинга включают в себя:  
+**Приложения мониторинга включают в себя:**  
 prometheus (сбор метрик)  
 node-exporter  
 cAdvisor (собирает метрики контейнеров и хоста и публикует их для prometheus)  
@@ -1948,7 +1948,7 @@ grafana (визуализация метрик prometheus)
 alertmanager (доп.компонент для Prometheus, отправляет алерты в slack)
 
 
-- Экспортировал настроенные дашборды grafana в .json в каталог grafana/dashboards
+- Экспортировал настроенные дашборды grafana в .json в каталог `grafana/dashboards`
 
 - Запушил собранные образы в DockerHub
 
@@ -1958,15 +1958,15 @@ alertmanager (доп.компонент для Prometheus, отправляет 
 ```bash
 # запускаем приложение
 docker-compose -f docker-compose.yml up -d
-# запускаем мониторинг
+# запускаем приложения мониторинга
 docker-compose -f docker-compose-monitoring.yml up -d
 ```
 
-Проверяем, что алерты отправляются в slack:
+Проверяем, что алерты отправляются в slack. Остановим контейнер:
 
 ```
 docker-compose stop post
 ```
 
-Инстанс доступен по адресу: http://178.154.201.80
+Инстанс доступен по адресу: http://178.154.201.80:<порт>
 
