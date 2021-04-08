@@ -1941,15 +1941,16 @@ networks:
 ```
 
 Приложения мониторинга включают в себя:  
-- prometheus
-- node-exporter
-- cAdvisor (собирает метрики контейнеров и хоста и публикует для prometheus)
-- Grafana (визуализация метрик prometheus)
-- Alertmanager (доп.компонент для Prometheus, отправляет алерты в slack)
+prometheus (сбор метрик)  
+node-exporter  
+cAdvisor (собирает метрики контейнеров и хоста и публикует их для prometheus)  
+grafana (визуализация метрик prometheus)  
+alertmanager (доп.компонент для Prometheus, отправляет алерты в slack)
+
 
 - Экспортировал настроенные дашборды grafana в .json в каталог grafana/dashboards
 
-- Запушил собранные образы на DockerHub
+- Запушил собранные образы в DockerHub
 
 
 ### Запуск и проверка
@@ -1966,3 +1967,6 @@ docker-compose -f docker-compose-monitoring.yml up -d
 ```
 docker-compose stop post
 ```
+
+Инстанс доступен по адресу: http://178.154.201.80
+
