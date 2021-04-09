@@ -1768,3 +1768,205 @@ docker push $USER_NAME/prometheus
 [health check основного сервиса ui](monitoring/prometheus/prometh_ui_health.png)  
 [health check зависимого сервиса comment](monitoring/prometheus/prometh_ui_health_comments_avail.png)   
 [Информация об использ. CPU docker-хоста (сбор идет через node exporter)](monitoring/prometheus/prometh_node_load.png)
+
+
+# Домашнее задание №17
+## Мониторинг приложения и инфраструктуры
+
+- Мониторинг Docker контейнеров
+- Визуализация метрик
+- Сбор метрик работы приложения и бизнес метрик
+- Настройка и проверка алертинга
+
+### Описание
+
+- Собрал docker-образы `prometheus` и `alertmanager`
+
+- Подготовил `docker-compose` файлы:
+
+  - docker-compose.yml для запуска приложения reddit:
+
+```yml
+version: '3.3'
+services:
+
+  post_db:
+    env_file: .env
+    image: mongo:${MONGODB_VERSION}
+    volumes:
+      - post_db:/data/db
+    networks:
+      back_net:
+        aliases:
+          - post_db
+          - comment_db
+
+  ui:
+    env_file: .env
+#    build: ./ui
+#    image: ${USER_NAME}/ui:${UI_VERSION}
+    image: ${USER_NAME}/ui
+    ports:
+      - ${UI_HOST_PORT}:${UI_CONTAINER_PORT}/tcp
+    networks:
+      - front_net
+
+  post:
+    env_file: .env
+#    build: ./post-py
+#    image: ${USER_NAME}/post:${POST_VERSION}
+    image: ${USER_NAME}/post
+    networks:
+      - front_net
+      - back_net
+      
+  comment:
+    env_file: .env
+#    build: ./comment
+#    image: ${USER_NAME}/comment:${COMMENT_VERSION}
+    image: ${USER_NAME}/comment
+    networks:
+      - front_net
+      - back_net
+
+volumes:
+  post_db: 
+
+networks:
+  front_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: ${FRONT_NET_SUBNET}
+  back_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: ${BACK_NET_SUBNET}
+```
+
+  - docker-compose-monitoring.yml для запуска приложений мониторинга:
+
+```yml
+version: '3.3'
+services:
+
+    prometheus:
+        env_file: .env
+        image: ${USER_NAME}/prometheus
+        ports:
+            - 9090:9090
+        volumes:
+            - prometheus_data:/prometheus
+        command:
+        # Передаем доп параметры вкомандной строке
+            - '--config.file=/etc/prometheus/prometheus.yml'
+            - '--storage.tsdb.path=/prometheus'
+            - '--storage.tsdb.retention=1d' # Задаем время хранения метрик в 1 день
+        networks:
+            - front_net
+            - back_net    
+    
+    node-exporter:
+        image: prom/node-exporter:v0.15.2
+        user: root
+        volumes:
+        - /proc:/host/proc:ro
+        - /sys:/host/sys:ro
+        - /:/rootfs:ro
+        command:
+        - '--path.procfs=/host/proc'
+        - '--path.sysfs=/host/sys'
+        - '--collector.filesystem.ignored-mount-points="^/(sys|proc|dev|host|etc)($$|/)"'  
+        networks:
+        - front_net
+        - back_net  
+
+    cadvisor:
+        image: google/cadvisor:v0.29.0
+        volumes:
+            - '/:/rootfs:ro'
+            - '/var/run:/var/run:rw'
+            - '/sys:/sys:ro'
+            - '/var/lib/docker/:/var/lib/docker:ro'
+        ports:
+            - '8080:8080'
+        networks:
+            - front_net
+
+    grafana:
+        image: grafana/grafana:5.0.0
+        volumes:
+            - grafana_data:/var/lib/grafana
+        environment:
+            - GF_SECURITY_ADMIN_USER=admin
+            - GF_SECURITY_ADMIN_PASSWORD=secret
+        depends_on:
+            - prometheus
+        ports:
+            - 3000:3000
+        networks:
+            - front_net
+            - back_net
+
+    alertmanager:
+        env_file: .env
+        image: ${USER_NAME}/alertmanager
+        command: 
+            - '--config.file=/etc/alertmanager/config.yml'
+        ports: 
+            - 9093:9093
+        networks:
+            - front_net
+
+volumes:
+    prometheus_data:
+    grafana_data:
+        
+networks:    
+    front_net:
+        driver: bridge
+        ipam:
+            driver: default
+            config:
+                - subnet: ${FRONT_NET_SUBNET}   
+    back_net:
+        driver: bridge
+        ipam:
+            driver: default
+            config:
+                - subnet: ${BACK_NET_SUBNET}
+```
+
+**Приложения мониторинга включают в себя:**  
+prometheus (сбор метрик)  
+node-exporter  
+cAdvisor (собирает метрики контейнеров и хоста и публикует их для prometheus)  
+grafana (визуализация метрик prometheus)  
+alertmanager (доп.компонент для Prometheus, отправляет алерты в slack)
+
+
+- Экспортировал настроенные дашборды grafana в .json в каталог `grafana/dashboards`
+
+- Запушил собранные образы в DockerHub
+
+
+### Запуск и проверка
+
+```bash
+# запускаем приложение
+docker-compose -f docker-compose.yml up -d
+# запускаем приложения мониторинга
+docker-compose -f docker-compose-monitoring.yml up -d
+```
+
+Проверяем, что алерты отправляются в slack. Остановим контейнер:
+
+```
+docker-compose stop post
+```
+
+Инстанс доступен по адресу: http://178.154.201.80:<порт>
+
