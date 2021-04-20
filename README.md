@@ -2000,7 +2000,7 @@ docker-machine create \
   logging
 ```
 
-- Собрал новые образы сервисов `reddit` с функционалом логгирования, а также `fluent`    
+- Собрал новые образы сервисов `reddit` с функционалом логгирования, а также `fluentd`    
 
 - Описал сервисы в docker-compose: 
 
@@ -2094,7 +2094,7 @@ networks:
   - `docker-compose-logging.yml` - сервисы логгирования:
     - elasticsearch  
     - kibana  
-    - fluent  
+    - fluentd  
     - zipkin 
 
 ```yml
