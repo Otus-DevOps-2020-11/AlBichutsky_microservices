@@ -4,6 +4,8 @@ services:
   post_db:
     env_file: .env
     image: mongo:${MONGODB_VERSION}
+    environment:  
+      - ZIPKIN_ENABLED=${ZIPKIN_ENABLED}
     volumes:
       - post_db:/data/db
     networks:
@@ -16,9 +18,16 @@ services:
     env_file: .env
 #    build: ./ui
 #    image: ${USER_NAME}/ui:${UI_VERSION}
-    image: ${USER_NAME}/ui
+    image: ${USER_NAME}/ui:logging
+    environment:  
+      - ZIPKIN_ENABLED=${ZIPKIN_ENABLED}
     ports:
       - ${UI_HOST_PORT}:${UI_CONTAINER_PORT}/tcp
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: localhost:24224
+        tag: service.ui  
     networks:
       - front_net
 
@@ -26,7 +35,20 @@ services:
     env_file: .env
 #    build: ./post-py
 #    image: ${USER_NAME}/post:${POST_VERSION}
-    image: ${USER_NAME}/post
+    image: ${USER_NAME}/post:logging
+    environment:
+      - POST_DATABASE_HOST=post_db
+      - POST_DATABASE=posts
+      - ZIPKIN_ENABLED=${ZIPKIN_ENABLED}
+    depends_on:
+      - post_db
+    ports:
+      - "5000:5000"
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: localhost:24224
+        tag: service.post
     networks:
       - front_net
       - back_net
@@ -35,7 +57,9 @@ services:
     env_file: .env
 #    build: ./comment
 #    image: ${USER_NAME}/comment:${COMMENT_VERSION}
-    image: ${USER_NAME}/comment
+    image: ${USER_NAME}/comment:logging
+    environment:  
+      - ZIPKIN_ENABLED=${ZIPKIN_ENABLED}
     networks:
       - front_net
       - back_net
